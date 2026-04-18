@@ -109,9 +109,12 @@ def export_txt(report: AnalysisReport, output_path: Path) -> Path:
     # ------------------------------------------------------------------
     # Header
     # ------------------------------------------------------------------
+    def _ev(val):
+        return val.value if hasattr(val, "value") else str(val) if val else "N/A"
+
     lines += _header(f"LYNX Basic Materials  --  {p.name} ({p.ticker})")
-    lines.append(f"  Tier: {p.tier.value}  |  Stage: {p.stage.value}")
-    lines.append(f"  Commodity: {p.primary_commodity.value}  |  Jurisdiction: {p.jurisdiction_tier.value}")
+    lines.append(f"  Tier: {_ev(p.tier)}  |  Stage: {_ev(p.stage)}")
+    lines.append(f"  Commodity: {_ev(p.primary_commodity)}  |  Jurisdiction: {_ev(p.jurisdiction_tier)}")
     if p.jurisdiction_country:
         lines.append(f"  Jurisdiction country: {p.jurisdiction_country}")
 
@@ -167,7 +170,8 @@ def export_txt(report: AnalysisReport, output_path: Path) -> Path:
     # Profitability Metrics
     # ------------------------------------------------------------------
     lines += _section("PROFITABILITY METRICS")
-    if p.stage in (CompanyStage.GRASSROOTS, CompanyStage.EXPLORER):
+    _pre_revenue = _ev(p.stage) in ("Grassroots Explorer", "Advanced Explorer")
+    if _pre_revenue:
         lines.append("  N/A for pre-revenue company at this stage.")
         if report.profitability and report.profitability.aisc_per_unit is not None:
             lines.append(_row("AISC/" + report.profitability.aisc_unit, _fmt_money(report.profitability.aisc_per_unit)))
@@ -425,8 +429,11 @@ def export_txt(report: AnalysisReport, output_path: Path) -> Path:
             lines.append("")
             lines.append("  Recent Insider Transactions:")
             for t in mi.insider_transactions[:5]:
-                val_str = f" ({_fmt_money(t.value)})" if t.value else ""
-                lines.append(f"    {t.date}  {t.insider[:25]:<25s}  {t.transaction_type}  {_fmt_num(t.shares, 0)} shs{val_str}")
+                # Handle both InsiderTransaction dataclass and plain dict (from cache)
+                _g = lambda k, d="": t.get(k, d) if isinstance(t, dict) else getattr(t, k, d)
+                val_str = f" ({_fmt_money(_g('value'))})" if _g('value') else ""
+                insider = str(_g('insider', ''))[:25]
+                lines.append(f"    {_g('date')}  {insider:<25s}  {_g('transaction_type')}  {_fmt_num(_g('shares'), 0)} shs{val_str}")
 
         # Institutional
         if mi.institutions_count or mi.institutions_pct or mi.top_holders:

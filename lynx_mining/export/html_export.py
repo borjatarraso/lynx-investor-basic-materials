@@ -73,6 +73,13 @@ def _fmt_bool(val) -> str:
     return "Yes" if val else "No"
 
 
+def _ga(obj, key, default=""):
+    """Get attribute from dataclass or dict (handles deserialized data)."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 def _tr(label: str, value: str) -> str:
     """Table row with label and value."""
     return f"<tr><td>{esc(label)}</td><td>{esc(value)}</td></tr>"
@@ -221,12 +228,16 @@ def export_html(report: AnalysisReport, output_path: Path) -> Path:
 """)
 
     # --- Header ---
+    def _ev(val):
+        """Extract enum .value or return str."""
+        return val.value if hasattr(val, "value") else str(val) if val else "N/A"
+
     parts.append(f"""<h1>{esc(p.name)} ({esc(p.ticker)})</h1>
 <p class="meta">
-Tier: {esc(p.tier.value)} &nbsp;|&nbsp;
-Stage: {esc(p.stage.value)} &nbsp;|&nbsp;
-Commodity: {esc(p.primary_commodity.value)} &nbsp;|&nbsp;
-Jurisdiction: {esc(p.jurisdiction_tier.value)}
+Tier: {esc(_ev(p.tier))} &nbsp;|&nbsp;
+Stage: {esc(_ev(p.stage))} &nbsp;|&nbsp;
+Commodity: {esc(_ev(p.primary_commodity))} &nbsp;|&nbsp;
+Jurisdiction: {esc(_ev(p.jurisdiction_tier))}
 {(' &nbsp;|&nbsp; Jurisdiction Country: ' + esc(p.jurisdiction_country)) if p.jurisdiction_country else ''}
 </p>
 """)
@@ -284,7 +295,8 @@ Jurisdiction: {esc(p.jurisdiction_tier.value)}
 
     # --- Profitability Metrics ---
     parts.append('<div class="card"><h2>Profitability Metrics</h2>')
-    if p.stage in (CompanyStage.GRASSROOTS, CompanyStage.EXPLORER):
+    _pre_revenue = _ev(p.stage) in ("Grassroots Explorer", "Advanced Explorer")
+    if _pre_revenue:
         parts.append('<p class="meta">N/A for pre-revenue company at this stage.</p>')
         if report.profitability and report.profitability.aisc_per_unit is not None:
             parts.append(_metric_table([
@@ -512,11 +524,11 @@ Jurisdiction: {esc(p.jurisdiction_tier.value)}
             parts.append("<table><tr><th>Date</th><th>Insider</th><th>Type</th><th>Shares</th><th>Value</th></tr>")
             for t in mi.insider_transactions[:8]:
                 parts.append(
-                    f"<tr><td>{esc(t.date)}</td>"
-                    f"<td>{esc(t.insider)}</td>"
-                    f"<td>{esc(t.transaction_type)}</td>"
-                    f"<td>{esc(_fmt_num(t.shares, 0))}</td>"
-                    f"<td>{esc(_fmt_money(t.value))}</td></tr>"
+                    f"<tr><td>{esc(str(_ga(t, 'date', '')))}</td>"
+                    f"<td>{esc(str(_ga(t, 'insider', '')))}</td>"
+                    f"<td>{esc(str(_ga(t, 'transaction_type', '')))}</td>"
+                    f"<td>{esc(_fmt_num(_ga(t, 'shares'), 0))}</td>"
+                    f"<td>{esc(_fmt_money(_ga(t, 'value')))}</td></tr>"
                 )
             parts.append("</table>")
 
