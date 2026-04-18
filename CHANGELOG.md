@@ -2,6 +2,26 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [0.4] - 2026-04-19
+
+### Fixed
+- **Path traversal vulnerability**: Ticker names with `../` are now sanitized via `_sanitize_ticker()` to prevent directory escapes
+- **`--max-filings` validation**: Now rejects 0 and negative values with `_positive_int` validator
+- **`calc_intrinsic_value` with empty statements**: Method selection (primary/secondary) now always set even when no financial data is available
+- **HTML export XSS**: Verified all user-supplied strings are HTML-escaped via `html.escape()`
+
+### Added
+- **26 new edge case tests** (`tests/test_edge_cases.py`):
+  - Path traversal prevention (8 tests)
+  - ISIN validation (4 tests)
+  - NaN/Inf handling in metrics, conclusion, and exports (4 tests)
+  - Zero division scenarios (3 tests)
+  - HTML export security (2 tests)
+  - Empty report display (2 tests)
+  - Calculator edge cases with empty/missing data (3 tests)
+- **Storage `_sanitize_ticker()`**: Strips special characters, prevents `..` traversal, uppercases, handles empty input
+- Total: 158 tests (116 unit + 42 robot), all passing
+
 ## [0.3] - 2026-04-18
 
 ### Fixed

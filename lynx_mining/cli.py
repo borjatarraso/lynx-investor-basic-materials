@@ -38,9 +38,17 @@ def build_parser():
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--drop-cache", metavar="TICKER", nargs="?", const="__prompt__")
     parser.add_argument("--list-cache", action="store_true")
-    parser.add_argument("--no-reports", action="store_true")
-    parser.add_argument("--no-news", action="store_true")
-    parser.add_argument("--max-filings", type=int, default=10, metavar="N")
+    parser.add_argument("--no-reports", action="store_true", help="Skip fetching SEC/SEDAR filings")
+    parser.add_argument("--no-news", action="store_true", help="Skip fetching news articles")
+
+    def _positive_int(value: str) -> int:
+        n = int(value)
+        if n <= 0:
+            raise argparse.ArgumentTypeError(f"{value} is not a positive integer")
+        return n
+
+    parser.add_argument("--max-filings", type=_positive_int, default=10, metavar="N",
+                        help="Maximum filings to download (default: 10)")
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--export", choices=["txt", "html", "pdf"], metavar="FORMAT")
     parser.add_argument("--output", metavar="PATH")

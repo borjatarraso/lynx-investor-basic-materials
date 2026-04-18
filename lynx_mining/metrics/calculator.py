@@ -423,10 +423,8 @@ def calc_intrinsic_value(
     iv = IntrinsicValue()
     iv.current_price = info.get("currentPrice") or info.get("regularMarketPrice")
     shares = info.get("sharesOutstanding")
-    if not statements:
-        return iv
-    latest = statements[0]
 
+    # Set method selection based on stage (always, even without statements)
     if stage == CompanyStage.PRODUCER:
         if tier in (CompanyTier.LARGE, CompanyTier.MID, CompanyTier.MEGA):
             iv.primary_method = "DCF"
@@ -446,6 +444,10 @@ def calc_intrinsic_value(
     else:
         iv.primary_method = "Cash Backing"
         iv.secondary_method = "Peer Market Cap Comparison"
+
+    if not statements:
+        return iv
+    latest = statements[0]
 
     if stage in (CompanyStage.PRODUCER, CompanyStage.ROYALTY):
         if latest.free_cash_flow and latest.free_cash_flow > 0 and shares and shares > 0:

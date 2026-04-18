@@ -39,8 +39,17 @@ def get_data_root() -> Path:
     return root
 
 
+def _sanitize_ticker(ticker: str) -> str:
+    """Sanitize ticker to prevent path traversal."""
+    import re
+    safe = re.sub(r'[^A-Z0-9.\-]', '_', ticker.upper())
+    safe = safe.replace('..', '_').strip('_. ')
+    return safe or "UNKNOWN"
+
+
 def get_company_dir(ticker: str) -> Path:
-    d = get_data_root() / ticker.upper()
+    safe = _sanitize_ticker(ticker)
+    d = get_data_root() / safe
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -139,7 +148,8 @@ def list_saved_analyses(ticker: str) -> list[Path]:
 
 
 def drop_cache_ticker(ticker: str) -> bool:
-    d = get_data_root() / ticker.upper()
+    safe = _sanitize_ticker(ticker)
+    d = get_data_root() / safe
     if d.exists() and d.is_dir():
         shutil.rmtree(d)
         return True
