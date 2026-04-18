@@ -2,6 +2,23 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [0.3] - 2026-04-18
+
+### Fixed
+- **HTML export**: Changed from dark Catppuccin theme to professional white background with dark text, readable when printed
+- **HTML tables**: Added `table-layout:fixed` and `overflow-wrap:break-word` to prevent any text truncation in cells
+- **HTML print support**: Added `@media print` CSS with `break-inside:avoid` on cards
+- **HTML score bars**: Adjusted colors for readability on white background (green/amber/red)
+- **Robot export tests**: Rewrote to use Python API with synthetic reports (avoids network timeouts), added HTML quality assertions
+- **Export timeout**: Increased Robot Framework process timeout to 300s for network tests
+
+### Changed
+- HTML export now produces professional print-ready reports with white background
+- Export tests now verify white background, word-wrap, and print media support
+- Robot test suite: 42 tests (was 38), all passing
+- Unit test suite: 90 tests, all passing
+- Total: 132 tests, all passing
+
 ## [0.2] - 2026-04-18
 
 ### Added

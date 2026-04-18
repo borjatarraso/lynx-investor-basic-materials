@@ -1,24 +1,15 @@
 *** Settings ***
-Documentation    Export workflow tests for lynx-mining
+Documentation    Export workflow tests for lynx-mining (uses Python API to avoid network timeouts)
 Library          Process
-Library          OperatingSystem
 
 *** Variables ***
 ${PYTHON}        python3
-${MODULE}        lynx_mining
 
 *** Keywords ***
-Run App
-    [Arguments]    @{args}
-    ${result}=    Run Process    ${PYTHON}    -m    ${MODULE}    @{args}    timeout=120s
+When I Run Python Code "${code}"
+    ${result}=    Run Process    ${PYTHON}    -c    ${code}    timeout=30s
     Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
     Set Test Variable    ${RC}    ${result.rc}
-
-Given A Fresh Test Cache
-    Run App    -t    --drop-cache    ALL
-
-When I Analyze And Export "${ticker}" As "${format}"
-    Run App    -t    ${ticker}    --no-reports    --no-news    --export    ${format}
 
 Then The Exit Code Should Be ${expected}
     Should Be Equal As Integers    ${RC}    ${expected}
@@ -27,16 +18,26 @@ Then The Output Should Contain "${text}"
     Should Contain    ${OUTPUT}    ${text}
 
 *** Test Cases ***
-Export TXT Report
-    [Documentation]    GIVEN clean cache WHEN I export as TXT THEN file is created
-    Given A Fresh Test Cache
-    When I Analyze And Export "UUUU" As "txt"
+Export TXT From Minimal Report
+    [Documentation]    GIVEN a report WHEN I export as TXT THEN a readable file is created
+    When I Run Python Code "from lynx_mining.models import AnalysisReport, CompanyProfile, CompanyTier, CompanyStage, ValuationMetrics, SolvencyMetrics; from lynx_mining.export import export_report, ExportFormat; from pathlib import Path; import tempfile; p = CompanyProfile(ticker='TEST', name='Test Mining Corp', sector='Basic Materials', industry='Gold', country='Canada', market_cap=100000000); p.tier = CompanyTier.MICRO; p.stage = CompanyStage.EXPLORER; r = AnalysisReport(profile=p, valuation=ValuationMetrics(pb_ratio=0.8, cash_to_market_cap=0.35), solvency=SolvencyMetrics(cash_runway_years=3.0, total_cash=35000000)); f = tempfile.NamedTemporaryFile(suffix='.txt', delete=False); path = export_report(r, ExportFormat.TXT, Path(f.name)); content = path.read_text(); assert 'Test Mining Corp' in content; assert 'Explorer' in content; assert len(content) > 500; print('OK', len(content), 'bytes')"
     Then The Exit Code Should Be 0
-    Then The Output Should Contain "Exported to"
+    Then The Output Should Contain "OK"
 
-Export HTML Report
-    [Documentation]    GIVEN clean cache WHEN I export as HTML THEN file is created
-    Given A Fresh Test Cache
-    When I Analyze And Export "UUUU" As "html"
+Export HTML From Minimal Report
+    [Documentation]    GIVEN a report WHEN I export as HTML THEN a styled file with white background
+    When I Run Python Code "from lynx_mining.models import AnalysisReport, CompanyProfile, CompanyTier, CompanyStage, ValuationMetrics, SolvencyMetrics; from lynx_mining.export import export_report, ExportFormat; from pathlib import Path; import tempfile; p = CompanyProfile(ticker='TEST', name='Test Mining Corp', sector='Basic Materials', industry='Gold', country='Canada', market_cap=100000000); p.tier = CompanyTier.MICRO; p.stage = CompanyStage.EXPLORER; r = AnalysisReport(profile=p, valuation=ValuationMetrics(pb_ratio=0.8, cash_to_market_cap=0.35), solvency=SolvencyMetrics(cash_runway_years=3.0, total_cash=35000000)); f = tempfile.NamedTemporaryFile(suffix='.html', delete=False); path = export_report(r, ExportFormat.HTML, Path(f.name)); content = path.read_text(); assert '#ffffff' in content, 'Missing white background'; assert 'word-wrap' in content, 'Missing word-wrap'; assert 'Test Mining Corp' in content; assert len(content) > 1000; print('OK', len(content), 'bytes')"
     Then The Exit Code Should Be 0
-    Then The Output Should Contain "Exported to"
+    Then The Output Should Contain "OK"
+
+HTML Has No Text Truncation
+    [Documentation]    GIVEN an HTML export WHEN I check table cells THEN word-wrap is enabled
+    When I Run Python Code "from lynx_mining.models import AnalysisReport, CompanyProfile, CompanyTier, CompanyStage, ValuationMetrics; from lynx_mining.export import export_report, ExportFormat; from pathlib import Path; import tempfile; p = CompanyProfile(ticker='T', name='T Corp'); p.tier = CompanyTier.MICRO; p.stage = CompanyStage.EXPLORER; r = AnalysisReport(profile=p, valuation=ValuationMetrics(pb_ratio=0.8)); f = tempfile.NamedTemporaryFile(suffix='.html', delete=False); path = export_report(r, ExportFormat.HTML, Path(f.name)); c = path.read_text(); assert 'overflow-wrap:break-word' in c; assert 'table-layout:fixed' in c; print('OK')"
+    Then The Exit Code Should Be 0
+    Then The Output Should Contain "OK"
+
+HTML Has Professional White Background
+    [Documentation]    GIVEN an HTML export WHEN I check styling THEN it uses white background
+    When I Run Python Code "from lynx_mining.models import AnalysisReport, CompanyProfile; from lynx_mining.export import export_report, ExportFormat; from pathlib import Path; import tempfile; r = AnalysisReport(profile=CompanyProfile(ticker='T', name='T')); f = tempfile.NamedTemporaryFile(suffix='.html', delete=False); path = export_report(r, ExportFormat.HTML, Path(f.name)); c = path.read_text(); assert 'background:#ffffff' in c, 'No white bg'; assert 'color:#1a1a2e' in c, 'No dark text'; assert '@media print' in c, 'No print styles'; print('OK')"
+    Then The Exit Code Should Be 0
+    Then The Output Should Contain "OK"

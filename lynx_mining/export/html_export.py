@@ -99,48 +99,50 @@ def _metric_table(fields: list[tuple[str, str]]) -> str:
 # ---------------------------------------------------------------------------
 
 CSS = """
+@media print { body { padding: 12px; } .card { break-inside: avoid; } }
 *{box-sizing:border-box}
 body{
   font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
   max-width:960px;margin:0 auto;padding:24px;
-  background:#1e1e2e;color:#cdd6f4;line-height:1.6;
+  background:#ffffff;color:#1a1a2e;line-height:1.6;
 }
-h1{color:#89b4fa;margin-bottom:4px;font-size:1.6em}
-h2{color:#a6e3a1;margin:0 0 8px 0;font-size:1.15em;border-bottom:1px solid #45475a;padding-bottom:4px}
+h1{color:#1a3a6e;margin-bottom:4px;font-size:1.6em}
+h2{color:#2a6a3e;margin:0 0 8px 0;font-size:1.15em;border-bottom:2px solid #ddd;padding-bottom:4px}
 .card{
-  background:#181825;border:1px solid #313244;border-radius:10px;
+  background:#fafafa;border:1px solid #ddd;border-radius:8px;
   padding:18px 22px;margin-bottom:18px;
 }
-table{width:100%;border-collapse:collapse;margin-bottom:8px}
-th,td{padding:7px 10px;text-align:left;border-bottom:1px solid #313244;word-wrap:break-word;overflow-wrap:break-word}
-th{background:#313244;color:#cba6f7;font-weight:600;font-size:0.92em}
-td{font-size:0.93em}
-tr:hover{background:#1e1e2e}
+table{width:100%;border-collapse:collapse;margin-bottom:8px;table-layout:fixed}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid #ddd;word-wrap:break-word;overflow-wrap:break-word}
+th{background:#eef2f7;color:#2a2a5e;font-weight:600;font-size:0.92em}
+td{font-size:0.93em;color:#1a1a2e}
+tr:nth-child(even){background:#f5f7fa}
+tr:hover{background:#e8ecf2}
 .verdict-card{
-  text-align:center;padding:20px;border-radius:10px;margin:18px 0;
+  text-align:center;padding:20px;border-radius:8px;margin:18px 0;
   font-size:1.4em;font-weight:700;
 }
-.verdict-strong-buy{background:#1a4a2e;color:#a6e3a1;border:2px solid #a6e3a1}
-.verdict-buy{background:#1a3a2e;color:#94e2d5;border:2px solid #94e2d5}
-.verdict-hold{background:#3a3520;color:#f9e2af;border:2px solid #f9e2af}
-.verdict-caution{background:#3a2a1a;color:#fab387;border:2px solid #fab387}
-.verdict-avoid{background:#3a1a1a;color:#f38ba8;border:2px solid #f38ba8}
+.verdict-strong-buy{background:#e6f9ed;color:#1a7a3a;border:2px solid #2a9a4e}
+.verdict-buy{background:#e6f5f0;color:#1a6a5a;border:2px solid #2a8a6e}
+.verdict-hold{background:#fef9e6;color:#7a6a1a;border:2px solid #baa020}
+.verdict-caution{background:#fef0e6;color:#8a5a1a;border:2px solid #ca7a20}
+.verdict-avoid{background:#fde8ec;color:#8a1a2a;border:2px solid #c03050}
 .score-bar{
   display:inline-block;height:14px;border-radius:3px;vertical-align:middle;
 }
-.score-bg{background:#45475a;width:120px;display:inline-block;height:14px;border-radius:3px;position:relative;vertical-align:middle}
+.score-bg{background:#ddd;width:120px;display:inline-block;height:14px;border-radius:3px;position:relative;vertical-align:middle}
 .score-fill{height:14px;border-radius:3px;position:absolute;left:0;top:0}
-.s{color:#a6e3a1}.r{color:#f38ba8}
-.pass{color:#a6e3a1;font-weight:700}
-.fail{color:#f38ba8;font-weight:700}
-.na{color:#6c7086;font-weight:600}
-.meta{color:#6c7086;font-size:0.88em}
-.warn{color:#f38ba8;background:#2a1520;padding:8px 12px;border-radius:6px;border-left:3px solid #f38ba8;margin:6px 0}
-.disclaimer{color:#6c7086;font-size:0.82em;padding:6px 12px;border-left:2px solid #45475a;margin:4px 0}
+.s{color:#1a7a3a}.r{color:#a02040}
+.pass{color:#1a7a3a;font-weight:700}
+.fail{color:#a02040;font-weight:700}
+.na{color:#888;font-weight:600}
+.meta{color:#666;font-size:0.88em}
+.warn{color:#8a1a2a;background:#fde8ec;padding:8px 12px;border-radius:6px;border-left:3px solid #c03050;margin:6px 0}
+.disclaimer{color:#666;font-size:0.82em;padding:6px 12px;border-left:2px solid #ccc;margin:4px 0}
 .cols{display:flex;gap:18px;flex-wrap:wrap}
 .cols>div{flex:1;min-width:240px}
 ul{margin:4px 0;padding-left:20px}li{margin:2px 0}
-a{color:#89b4fa}
+a{color:#1a5a9e}
 """
 
 
@@ -500,11 +502,11 @@ Jurisdiction: {esc(p.jurisdiction_tier.value)}
             label = cat.replace("_", " ").title()
             pct = max(0, min(100, score))
             if pct >= 65:
-                bar_color = "#a6e3a1"
+                bar_color = "#2a9a4e"
             elif pct >= 45:
-                bar_color = "#f9e2af"
+                bar_color = "#baa020"
             else:
-                bar_color = "#f38ba8"
+                bar_color = "#c03050"
             parts.append(
                 f'<tr><td>{esc(label)}</td><td>{score:.1f}</td>'
                 f'<td><span class="score-bg">'
