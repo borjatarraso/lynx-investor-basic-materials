@@ -885,12 +885,23 @@ class LynxMiningApp(App):
             )
             self.report = report
         except Exception as e:
-            msg = str(e) if str(e) else type(e).__name__
-            self.call_from_thread(
-                self._set_status,
-                f"[bold red]Error:[/] {msg}\n\n"
-                "[dim]Press A to try again[/]",
-            )
+            from lynx_mining.core.analyzer import SectorMismatchError
+            if isinstance(e, SectorMismatchError):
+                self.call_from_thread(
+                    self._set_status,
+                    f"[bold blink red]!! SECTOR MISMATCH — ANALYSIS BLOCKED !![/]\n\n"
+                    f"[bold red]{e}[/]\n\n"
+                    f"[bold blink red]This tool is specialized ONLY for Basic Materials and Commodities:[/]\n"
+                    f"[red]Gold | Silver | Copper | Uranium | Lithium | Nickel | Zinc | Rare Earths[/]\n\n"
+                    f"[dim]Press A to analyze a different stock[/]",
+                )
+            else:
+                msg = str(e) if str(e) else type(e).__name__
+                self.call_from_thread(
+                    self._set_status,
+                    f"[bold red]Error:[/] {msg}\n\n"
+                    "[dim]Press A to try again[/]",
+                )
 
     def _set_status(self, message: str) -> None:
         self._remove_reports()

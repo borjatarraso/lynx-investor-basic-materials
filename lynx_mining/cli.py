@@ -173,7 +173,23 @@ def run_cli():
     except ValueError as e: errc.print(f"[bold red]Error:[/] {e}"); sys.exit(1)
     except (ConnectionError, TimeoutError, OSError) as e: errc.print(f"[bold red]Network error:[/] {e}"); sys.exit(1)
     except KeyboardInterrupt: print("\nAborted."); sys.exit(130)
-    except Exception as e: errc.print(f"[bold red]Unexpected error:[/] {type(e).__name__}: {e}"); sys.exit(1)
+    except Exception as e:
+        from lynx_mining.core.analyzer import SectorMismatchError
+        if isinstance(e, SectorMismatchError):
+            from rich.panel import Panel
+            errc.print()
+            errc.print(Panel(
+                f"[bold blink red]SECTOR MISMATCH — ANALYSIS BLOCKED[/]\n\n"
+                f"[bold red]{e}[/]\n\n"
+                f"[bold blink red]This tool is specialized ONLY for Basic Materials and Commodities.[/]\n"
+                f"[bold red]Companies outside this sector cannot be analyzed here.[/]",
+                title="[bold blink red]!! WRONG SECTOR !![/]",
+                border_style="bold red",
+                padding=(1, 3),
+            ))
+            errc.print()
+            sys.exit(1)
+        errc.print(f"[bold red]Unexpected error:[/] {type(e).__name__}: {e}"); sys.exit(1)
 
 
 def _cmd_list_cache(con):

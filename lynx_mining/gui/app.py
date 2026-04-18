@@ -636,9 +636,15 @@ class LynxMiningGUI:
             ).pack(anchor=tk.W, padx=40)
 
         def _do_export():
-            win.destroy()
             report = self._current_report
-            chosen = fmt.get()
+            chosen = fmt.get()  # Capture value BEFORE destroying the window
+            win.destroy()
+
+            if not report:
+                self.status_var.set(f"{WARN_ICON}  No report to export")
+                return
+
+            self.status_var.set(f"Exporting as {chosen.upper()}...")
 
             def _run():
                 from lynx_mining.export import ExportFormat, export_report
@@ -1003,11 +1009,18 @@ class LynxMiningGUI:
                 pass
 
         except Exception as e:
-            msg = str(e) or type(e).__name__
-            try:
-                self.root.after(0, self._show_analysis_error, msg)
-            except tk.TclError:
-                pass  # Root window was destroyed
+            from lynx_mining.core.analyzer import SectorMismatchError
+            if isinstance(e, SectorMismatchError):
+                try:
+                    self.root.after(0, self._show_sector_mismatch, str(e))
+                except tk.TclError:
+                    pass
+            else:
+                msg = str(e) or type(e).__name__
+                try:
+                    self.root.after(0, self._show_analysis_error, msg)
+                except tk.TclError:
+                    pass
 
     def _prepare_progressive(self) -> None:
         """Clear the scroll area and prepare for progressive section mounting."""
@@ -1099,6 +1112,74 @@ class LynxMiningGUI:
         self.btn_analyze.configure(state=tk.NORMAL)
         self.btn_clear.configure(state=tk.NORMAL)
         messagebox.showerror("Analysis Error", msg)
+
+    def _show_sector_mismatch(self, msg: str) -> None:
+        """Show a prominent red sector mismatch warning dialog."""
+        self.status_var.set(f"{CROSS}  SECTOR MISMATCH")
+        self.btn_analyze.configure(state=tk.NORMAL)
+        self.btn_clear.configure(state=tk.NORMAL)
+
+        win = tk.Toplevel(self.root)
+        win.title("SECTOR MISMATCH — ANALYSIS BLOCKED")
+        win.configure(bg="#3a0a0a")
+        win.resizable(False, False)
+        win.transient(self.root)
+        win.grab_set()
+
+        # Red warning icon
+        tk.Label(
+            win, text=f"{WARN_ICON} {CROSS} {WARN_ICON}", font=(_FAMILY, 36),
+            bg="#3a0a0a", fg="#ff4444",
+        ).pack(pady=(20, 8))
+
+        # Title
+        tk.Label(
+            win, text="WRONG SECTOR", font=(_FAMILY, 20, "bold"),
+            bg="#3a0a0a", fg="#ff4444",
+        ).pack(pady=(0, 8))
+
+        tk.Label(
+            win, text="ANALYSIS BLOCKED", font=(_FAMILY, 14, "bold"),
+            bg="#3a0a0a", fg="#ff6666",
+        ).pack(pady=(0, 16))
+
+        # Message
+        msg_frame = tk.Frame(win, bg="#2a0808", padx=20, pady=14)
+        msg_frame.pack(fill=tk.X, padx=24, pady=(0, 12))
+        tk.Label(
+            msg_frame, text=msg, font=FONT,
+            bg="#2a0808", fg="#ffaaaa", wraplength=520, justify=tk.LEFT,
+        ).pack(fill=tk.X)
+
+        # Specialization note
+        tk.Label(
+            win,
+            text=(
+                "This tool is specialized ONLY for:\n"
+                "Basic Materials  |  Gold  |  Silver  |  Copper\n"
+                "Uranium  |  Lithium  |  Nickel  |  Zinc  |  Rare Earths"
+            ),
+            font=(_FAMILY, 11, "bold"),
+            bg="#3a0a0a", fg="#ff8888", justify=tk.CENTER,
+        ).pack(padx=24, pady=(0, 16))
+
+        # Close button
+        tk.Button(
+            win, text="  Close  ", font=(_FAMILY, 11, "bold"),
+            bg="#ff4444", fg="#ffffff",
+            activebackground="#cc3333", activeforeground="#ffffff",
+            relief=tk.FLAT, padx=20, pady=6, cursor="hand2",
+            command=win.destroy,
+        ).pack(pady=(0, 20))
+
+        win.bind("<Escape>", lambda _: win.destroy())
+
+        # Center on screen
+        win.update_idletasks()
+        w, h = win.winfo_reqwidth(), win.winfo_reqheight()
+        sx = (win.winfo_screenwidth() - w) // 2
+        sy = (win.winfo_screenheight() - h) // 2
+        win.geometry(f"{w}x{h}+{sx}+{sy}")
 
     # ---- Tier banner -----------------------------------------------------
 

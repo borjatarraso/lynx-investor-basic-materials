@@ -28,6 +28,71 @@ from lynx_mining.models import (
 )
 
 console = Console(stderr=True)
+
+# Sectors and industries that this tool is designed for
+_ALLOWED_SECTORS = {"basic materials", "energy"}
+_ALLOWED_INDUSTRIES = {
+    "gold", "silver", "copper", "uranium", "other industrial metals & mining",
+    "other precious metals & mining", "specialty mining & metals", "coking coal",
+    "steel", "agricultural inputs", "chemicals", "industrial metals & minerals",
+    "metals & mining", "aluminum", "coal", "diversified metals & mining",
+}
+_COMMODITY_INDUSTRIES = {
+    "oil & gas", "oil & gas e&p", "oil & gas integrated", "oil & gas midstream",
+    "oil & gas refining & marketing", "oil & gas equipment & services",
+    "thermal coal", "uranium",
+}
+
+
+class SectorMismatchError(Exception):
+    """Raised when a company does not belong to basic materials or commodities."""
+    pass
+
+
+def _validate_sector(profile: CompanyProfile) -> None:
+    """Check if the company belongs to a basic materials or commodities sector.
+
+    Raises SectorMismatchError if the company is outside scope.
+    """
+    sector = (profile.sector or "").lower().strip()
+    industry = (profile.industry or "").lower().strip()
+
+    # Allow if sector matches
+    if sector in _ALLOWED_SECTORS:
+        return
+
+    # Allow if industry matches any known mining/commodity industry
+    for allowed in _ALLOWED_INDUSTRIES | _COMMODITY_INDUSTRIES:
+        if allowed in industry or industry in allowed:
+            return
+
+    # Allow if the description mentions mining-specific terms (not just commodity names)
+    import re
+    desc = (profile.description or "").lower()
+    # These terms are specific to mining companies and unlikely in non-mining descriptions
+    mining_specific = [
+        r"\bmining\b", r"\bmineral propert", r"\bmineral resource",
+        r"\bexploration stage\b", r"\bexploration and development\b",
+        r"\bdrill program\b", r"\bdrilling\b", r"\bore body\b", r"\bore deposit\b",
+        r"\bmine site\b", r"\bopen.?pit\b", r"\bunderground mine\b",
+        r"\bNI 43-101\b", r"\bJORC\b", r"\bAISC\b", r"\bresource estimate\b",
+        r"\bresource corp\b", r"\bmetallurg", r"\bsmelter\b", r"\bmill\b.*\bore\b",
+        r"\bgold mine\b", r"\bgold mining\b", r"\bsilver mine\b", r"\bcopper mine\b",
+        r"\buranium.*propert", r"\buranium.*explor", r"\buranium.*mine\b",
+    ]
+    if any(re.search(pattern, desc) for pattern in mining_specific):
+        return
+
+    raise SectorMismatchError(
+        f"{profile.name} ({profile.ticker}) is in the "
+        f"'{profile.sector or 'Unknown'}' / '{profile.industry or 'Unknown'}' "
+        f"sector, which is outside the scope of this tool.\n\n"
+        f"Lynx Basic Materials Analysis is specialized exclusively for:\n"
+        f"  - Basic Materials (Mining, Metals, Chemicals)\n"
+        f"  - Commodities (Gold, Silver, Copper, Uranium, Lithium, Nickel, Zinc, Rare Earths)\n"
+        f"  - Energy (Oil & Gas, Uranium producers)\n\n"
+        f"For general fundamental analysis, use lynx-fundamental instead."
+    )
 ProgressCallback = Callable[[str, AnalysisReport], None]
 
 
@@ -101,6 +166,10 @@ def run_progressive_analysis(
         f"  [bold][{_tier_color(tier)}]{tier.value}[/]"
         f"  [{_stage_color(stage)}]{stage.value}[/]"
     )
+
+    # Validate sector — refuse to analyze non-basic-materials companies
+    _validate_sector(profile)
+
     if profile.primary_commodity.value != "Other":
         console.print(f"[cyan]Primary Commodity:[/] {profile.primary_commodity.value}")
     console.print(f"[cyan]Jurisdiction Risk:[/] {profile.jurisdiction_tier.value}")

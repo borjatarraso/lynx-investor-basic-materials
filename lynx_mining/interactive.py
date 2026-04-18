@@ -116,6 +116,20 @@ def run_interactive():
             except ValueError as e: console.print(f"[bold red]Error:[/] {e}")
             except (ConnectionError, TimeoutError, OSError) as e: console.print(f"[bold red]Network error:[/] {e}")
             except KeyboardInterrupt: console.print("[dim]Cancelled.[/]")
+            except Exception as e:
+                from lynx_mining.core.analyzer import SectorMismatchError
+                if isinstance(e, SectorMismatchError):
+                    console.print()
+                    console.print(Panel(
+                        f"[bold blink red]SECTOR MISMATCH — ANALYSIS BLOCKED[/]\n\n"
+                        f"[bold red]{e}[/]\n\n"
+                        f"[bold blink red]This tool is specialized ONLY for Basic Materials and Commodities.[/]",
+                        title="[bold blink red]!! WRONG SECTOR !![/]",
+                        border_style="bold red", padding=(1, 3),
+                    ))
+                    console.print()
+                else:
+                    console.print(f"[bold red]Error:[/] {type(e).__name__}: {e}")
             except Exception as e: console.print(f"[bold red]Error:[/] {type(e).__name__}: {e}")
         elif cmd == "metrics":
             if current_report: display_full_report(current_report)
@@ -223,4 +237,13 @@ def run_interactive():
             console.print(f"[dim]Unknown command '{cmd}'. Trying as ticker...[/]")
             try:
                 current_report = run_progressive_analysis(identifier=raw, refresh=is_testing(), on_progress=display_report_stage)
-            except Exception as e: console.print(f"[red]{e}[/]\n[dim]Type 'help' for commands.[/]")
+            except Exception as e:
+                from lynx_mining.core.analyzer import SectorMismatchError
+                if isinstance(e, SectorMismatchError):
+                    console.print(Panel(
+                        f"[bold blink red]SECTOR MISMATCH[/]\n\n[bold red]{e}[/]",
+                        title="[bold blink red]!! WRONG SECTOR !![/]",
+                        border_style="bold red", padding=(1, 2),
+                    ))
+                else:
+                    console.print(f"[red]{e}[/]\n[dim]Type 'help' for commands.[/]")

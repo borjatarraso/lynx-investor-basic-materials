@@ -2,6 +2,22 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [0.6] - 2026-04-19
+
+### Added
+- **Sector validation gate**: Analysis is blocked with a prominent red blinking warning for companies outside Basic Materials / Commodities / Energy sectors
+  - Console: Red bordered panel with "!! WRONG SECTOR !!" title and blinking text
+  - Interactive: Same red panel with sector mismatch details
+  - TUI: Bold red blinking status message with allowed sectors list
+  - GUI: Custom dark red dialog with warning icons, sector list, and close button
+- **SectorMismatchError** exception class in analyzer for programmatic handling
+- **Mining-specific description validation**: Uses word-boundary regex patterns to detect genuine mining companies (avoids false positives like "App Store" matching "ore" or "lithium-ion battery" matching "lithium")
+
+### Fixed
+- **GUI export button**: Fixed closure variable capture — `fmt.get()` is now called before `win.destroy()` to prevent the StringVar from being garbage collected
+- **False positive sector validation**: "ore" no longer matches inside "store", "lithium" no longer matches "lithium-ion battery" contexts — uses mining-specific phrase patterns instead of bare commodity names
+- Added status message during export ("Exporting as HTML...")
+
 ## [0.5] - 2026-04-19
 
 ### Added
