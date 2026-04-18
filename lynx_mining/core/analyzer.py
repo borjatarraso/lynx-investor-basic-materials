@@ -62,9 +62,10 @@ def _validate_sector(profile: CompanyProfile) -> None:
         return
 
     # Allow if industry matches any known mining/commodity industry
-    for allowed in _ALLOWED_INDUSTRIES | _COMMODITY_INDUSTRIES:
-        if allowed in industry or industry in allowed:
-            return
+    if industry:
+        for allowed in _ALLOWED_INDUSTRIES | _COMMODITY_INDUSTRIES:
+            if allowed in industry or industry in allowed:
+                return
 
     # Allow if the description mentions mining-specific terms (not just commodity names)
     import re

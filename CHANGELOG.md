@@ -2,6 +2,22 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [1.0] - 2026-04-19
+
+### Added
+- **Comprehensive test suite**: 151 unit tests + 42 robot tests = 193 total
+  - test_sector_validation.py — 14 tests for sector gate (allow/block scenarios, false positive prevention)
+  - test_export.py — 14 tests for TXT/HTML exports (format handling, XSS, white background, word wrap, print media, footer)
+- **SectorMismatchError** exported from analyzer for programmatic handling
+
+### Fixed
+- **Sector validation empty string bug**: Empty industry `""` matched as substring of every allowed industry via `"" in "gold"` → added guard `if industry:` before substring check
+- **export_report accepts both string and enum**: Resolves `'str' object has no attribute 'value'` across all modes
+
+### Changed
+- Version bumped to 1.0 — first stable release
+- All documentation updated for v1.0
+
 ## [0.6] - 2026-04-19
 
 ### Added
