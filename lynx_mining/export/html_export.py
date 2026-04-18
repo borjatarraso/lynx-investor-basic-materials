@@ -1,26 +1,565 @@
-"""HTML export."""
+"""HTML export — full analysis report with Catppuccin Mocha theme."""
+
 from __future__ import annotations
+
+import math
+from html import escape as esc
 from pathlib import Path
-from lynx_mining.models import AnalysisReport
+from typing import Optional
+
+from lynx_mining.models import AnalysisReport, CompanyStage
+
+
+# ---------------------------------------------------------------------------
+# Formatting helpers
+# ---------------------------------------------------------------------------
+
+def _safe(val, default=None):
+    if val is None or isinstance(val, bool):
+        return default
+    try:
+        f = float(val)
+        return default if (math.isnan(f) or math.isinf(f)) else f
+    except (TypeError, ValueError):
+        return default
+
+
+def _fmt_num(val, decimals: int = 1, suffix: str = "") -> str:
+    v = _safe(val)
+    if v is None:
+        return "N/A"
+    abs_v = abs(v)
+    if abs_v >= 1e9:
+        return f"{v / 1e9:,.{decimals}f}B{suffix}"
+    if abs_v >= 1e6:
+        return f"{v / 1e6:,.{decimals}f}M{suffix}"
+    if abs_v >= 1e3:
+        return f"{v / 1e3:,.{decimals}f}K{suffix}"
+    return f"{v:,.{decimals}f}{suffix}"
+
+
+def _fmt_pct(val, decimals: int = 1) -> str:
+    v = _safe(val)
+    if v is None:
+        return "N/A"
+    return f"{v * 100:,.{decimals}f}%"
+
+
+def _fmt_money(val, decimals: int = 2, currency: str = "$") -> str:
+    v = _safe(val)
+    if v is None:
+        return "N/A"
+    abs_v = abs(v)
+    sign = "-" if v < 0 else ""
+    if abs_v >= 1e9:
+        return f"{sign}{currency}{abs_v / 1e9:,.{decimals}f}B"
+    if abs_v >= 1e6:
+        return f"{sign}{currency}{abs_v / 1e6:,.{decimals}f}M"
+    if abs_v >= 1e3:
+        return f"{sign}{currency}{abs_v / 1e3:,.{decimals}f}K"
+    return f"{sign}{currency}{abs_v:,.{decimals}f}"
+
+
+def _fmt_ratio(val, decimals: int = 2) -> str:
+    v = _safe(val)
+    if v is None:
+        return "N/A"
+    return f"{v:,.{decimals}f}"
+
+
+def _fmt_bool(val) -> str:
+    if val is None:
+        return "N/A"
+    return "Yes" if val else "No"
+
+
+def _tr(label: str, value: str) -> str:
+    """Table row with label and value."""
+    return f"<tr><td>{esc(label)}</td><td>{esc(value)}</td></tr>"
+
+
+def _metric_rows(fields: list[tuple[str, str]]) -> str:
+    """Generate table rows, skipping N/A values."""
+    rows = []
+    for label, val in fields:
+        if val != "N/A":
+            rows.append(_tr(label, val))
+    return "\n".join(rows)
+
+
+def _metric_table(fields: list[tuple[str, str]]) -> str:
+    body = _metric_rows(fields)
+    if not body:
+        return '<p class="meta">No data available.</p>'
+    return f"<table>\n<tr><th>Metric</th><th>Value</th></tr>\n{body}\n</table>"
+
+
+# ---------------------------------------------------------------------------
+# CSS — Catppuccin Mocha
+# ---------------------------------------------------------------------------
+
+CSS = """
+*{box-sizing:border-box}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  max-width:960px;margin:0 auto;padding:24px;
+  background:#1e1e2e;color:#cdd6f4;line-height:1.6;
+}
+h1{color:#89b4fa;margin-bottom:4px;font-size:1.6em}
+h2{color:#a6e3a1;margin:0 0 8px 0;font-size:1.15em;border-bottom:1px solid #45475a;padding-bottom:4px}
+.card{
+  background:#181825;border:1px solid #313244;border-radius:10px;
+  padding:18px 22px;margin-bottom:18px;
+}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid #313244;word-wrap:break-word;overflow-wrap:break-word}
+th{background:#313244;color:#cba6f7;font-weight:600;font-size:0.92em}
+td{font-size:0.93em}
+tr:hover{background:#1e1e2e}
+.verdict-card{
+  text-align:center;padding:20px;border-radius:10px;margin:18px 0;
+  font-size:1.4em;font-weight:700;
+}
+.verdict-strong-buy{background:#1a4a2e;color:#a6e3a1;border:2px solid #a6e3a1}
+.verdict-buy{background:#1a3a2e;color:#94e2d5;border:2px solid #94e2d5}
+.verdict-hold{background:#3a3520;color:#f9e2af;border:2px solid #f9e2af}
+.verdict-caution{background:#3a2a1a;color:#fab387;border:2px solid #fab387}
+.verdict-avoid{background:#3a1a1a;color:#f38ba8;border:2px solid #f38ba8}
+.score-bar{
+  display:inline-block;height:14px;border-radius:3px;vertical-align:middle;
+}
+.score-bg{background:#45475a;width:120px;display:inline-block;height:14px;border-radius:3px;position:relative;vertical-align:middle}
+.score-fill{height:14px;border-radius:3px;position:absolute;left:0;top:0}
+.s{color:#a6e3a1}.r{color:#f38ba8}
+.pass{color:#a6e3a1;font-weight:700}
+.fail{color:#f38ba8;font-weight:700}
+.na{color:#6c7086;font-weight:600}
+.meta{color:#6c7086;font-size:0.88em}
+.warn{color:#f38ba8;background:#2a1520;padding:8px 12px;border-radius:6px;border-left:3px solid #f38ba8;margin:6px 0}
+.disclaimer{color:#6c7086;font-size:0.82em;padding:6px 12px;border-left:2px solid #45475a;margin:4px 0}
+.cols{display:flex;gap:18px;flex-wrap:wrap}
+.cols>div{flex:1;min-width:240px}
+ul{margin:4px 0;padding-left:20px}li{margin:2px 0}
+a{color:#89b4fa}
+"""
+
+
+# ---------------------------------------------------------------------------
+# Main export
+# ---------------------------------------------------------------------------
 
 def export_html(report: AnalysisReport, output_path: Path) -> Path:
     from lynx_mining.core.conclusion import generate_conclusion
-    p, c = report.profile, generate_conclusion(report)
-    vc = c.verdict.lower().replace(" ", "-")
-    html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{p.name}</title>
-<style>body{{font-family:sans-serif;max-width:900px;margin:0 auto;padding:20px;background:#1e1e2e;color:#cdd6f4}}
-h1{{color:#89b4fa}}h2{{color:#a6e3a1}}table{{width:100%;border-collapse:collapse}}
-th,td{{padding:8px;text-align:left;border-bottom:1px solid #45475a}}th{{background:#313244;color:#cba6f7}}
-.verdict{{font-size:1.5em;padding:15px;border-radius:8px;text-align:center;margin:20px 0}}
-.s{{color:#a6e3a1}}.r{{color:#f38ba8}}.meta{{color:#6c7086;font-size:0.9em}}</style></head>
-<body><h1>{p.name} ({p.ticker})</h1>
-<p class="meta">Tier: {p.tier.value} | Stage: {p.stage.value} | Commodity: {p.primary_commodity.value} | Jurisdiction: {p.jurisdiction_tier.value}</p>
-<div class="verdict"><strong>{c.verdict}</strong> — {c.overall_score:.0f}/100</div><p>{c.summary}</p><p class="meta">{c.stage_note}</p>"""
+
+    p = report.profile
+    c = generate_conclusion(report)
+    verdict_class = c.verdict.lower().replace(" ", "-")
+
+    parts: list[str] = []
+
+    # --- Document head ---
+    parts.append(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lynx Report — {esc(p.name)} ({esc(p.ticker)})</title>
+<style>{CSS}</style>
+</head>
+<body>
+""")
+
+    # --- Header ---
+    parts.append(f"""<h1>{esc(p.name)} ({esc(p.ticker)})</h1>
+<p class="meta">
+Tier: {esc(p.tier.value)} &nbsp;|&nbsp;
+Stage: {esc(p.stage.value)} &nbsp;|&nbsp;
+Commodity: {esc(p.primary_commodity.value)} &nbsp;|&nbsp;
+Jurisdiction: {esc(p.jurisdiction_tier.value)}
+{(' &nbsp;|&nbsp; Jurisdiction Country: ' + esc(p.jurisdiction_country)) if p.jurisdiction_country else ''}
+</p>
+""")
+
+    # --- Verdict Card ---
+    parts.append(f"""<div class="verdict-card verdict-{verdict_class}">
+{esc(c.verdict)} &mdash; {c.overall_score:.0f}/100
+</div>
+<div class="card"><p>{esc(c.summary)}</p></div>
+""")
+
+    # --- Company Profile ---
+    parts.append('<div class="card"><h2>Company Profile</h2>')
+    profile_fields = [
+        ("Sector", p.sector or "N/A"),
+        ("Industry", p.industry or "N/A"),
+        ("Country", p.country or "N/A"),
+        ("Exchange", p.exchange or "N/A"),
+        ("Currency", p.currency or "N/A"),
+        ("Market Cap", _fmt_money(p.market_cap)),
+        ("Employees", f"{p.employees:,}" if p.employees else "N/A"),
+        ("ISIN", p.isin or "N/A"),
+    ]
+    if p.website:
+        profile_fields.append(("Website", p.website))
+    parts.append(_metric_table(profile_fields))
+    parts.append("</div>")
+
+    # --- Valuation Metrics ---
+    if report.valuation:
+        v = report.valuation
+        parts.append('<div class="card"><h2>Valuation Metrics</h2>')
+        parts.append(_metric_table([
+            ("P/E (Trailing)", _fmt_ratio(v.pe_trailing)),
+            ("P/E (Forward)", _fmt_ratio(v.pe_forward)),
+            ("P/B Ratio", _fmt_ratio(v.pb_ratio)),
+            ("P/S Ratio", _fmt_ratio(v.ps_ratio)),
+            ("P/FCF", _fmt_ratio(v.p_fcf)),
+            ("EV/EBITDA", _fmt_ratio(v.ev_ebitda)),
+            ("EV/Revenue", _fmt_ratio(v.ev_revenue)),
+            ("PEG Ratio", _fmt_ratio(v.peg_ratio)),
+            ("Dividend Yield", _fmt_pct(v.dividend_yield)),
+            ("Earnings Yield", _fmt_pct(v.earnings_yield)),
+            ("Enterprise Value", _fmt_money(v.enterprise_value)),
+            ("Market Cap", _fmt_money(v.market_cap)),
+            ("P/Tangible Book", _fmt_ratio(v.price_to_tangible_book)),
+            ("P/NCAV", _fmt_ratio(v.price_to_ncav)),
+            ("EV/Resource (oz)", _fmt_money(v.ev_per_resource_oz)),
+            ("EV/Resource (lb)", _fmt_money(v.ev_per_resource_lb)),
+            ("P/NAV", _fmt_ratio(v.p_nav)),
+            ("Cash/Market Cap", _fmt_pct(v.cash_to_market_cap)),
+            ("NAV/Share", _fmt_money(v.nav_per_share)),
+        ]))
+        parts.append("</div>")
+
+    # --- Profitability Metrics ---
+    parts.append('<div class="card"><h2>Profitability Metrics</h2>')
+    if p.stage in (CompanyStage.GRASSROOTS, CompanyStage.EXPLORER):
+        parts.append('<p class="meta">N/A for pre-revenue company at this stage.</p>')
+        if report.profitability and report.profitability.aisc_per_unit is not None:
+            parts.append(_metric_table([
+                ("AISC/" + report.profitability.aisc_unit, _fmt_money(report.profitability.aisc_per_unit)),
+            ]))
+    elif report.profitability:
+        pr = report.profitability
+        parts.append(_metric_table([
+            ("ROE", _fmt_pct(pr.roe)),
+            ("ROA", _fmt_pct(pr.roa)),
+            ("ROIC", _fmt_pct(pr.roic)),
+            ("Gross Margin", _fmt_pct(pr.gross_margin)),
+            ("Operating Margin", _fmt_pct(pr.operating_margin)),
+            ("Net Margin", _fmt_pct(pr.net_margin)),
+            ("FCF Margin", _fmt_pct(pr.fcf_margin)),
+            ("EBITDA Margin", _fmt_pct(pr.ebitda_margin)),
+            ("AISC/" + pr.aisc_unit, _fmt_money(pr.aisc_per_unit)),
+            ("Cash Cost/" + pr.aisc_unit, _fmt_money(pr.cash_cost_per_unit)),
+            ("AISC Margin", _fmt_pct(pr.aisc_margin)),
+        ]))
+    else:
+        parts.append('<p class="meta">No profitability data available.</p>')
+    parts.append("</div>")
+
+    # --- Solvency & Survival ---
+    if report.solvency:
+        s = report.solvency
+        parts.append('<div class="card"><h2>Solvency &amp; Survival</h2>')
+        parts.append(_metric_table([
+            ("Total Cash", _fmt_money(s.total_cash)),
+            ("Total Debt", _fmt_money(s.total_debt)),
+            ("Net Debt", _fmt_money(s.net_debt)),
+            ("Cash/Share", _fmt_money(s.cash_per_share)),
+            ("Cash Burn Rate (annual)", _fmt_money(s.cash_burn_rate)),
+            ("Quarterly Burn Rate", _fmt_money(s.quarterly_burn_rate)),
+            ("Cash Runway", f"{s.cash_runway_years:.1f} years" if _safe(s.cash_runway_years) is not None else "N/A"),
+            ("Burn % of Mkt Cap", _fmt_pct(s.burn_as_pct_of_market_cap)),
+            ("Debt/Equity", _fmt_ratio(s.debt_to_equity)),
+            ("Debt/EBITDA", _fmt_ratio(s.debt_to_ebitda)),
+            ("Current Ratio", _fmt_ratio(s.current_ratio)),
+            ("Quick Ratio", _fmt_ratio(s.quick_ratio)),
+            ("Interest Coverage", _fmt_ratio(s.interest_coverage)),
+            ("Working Capital", _fmt_money(s.working_capital)),
+            ("Altman Z-Score", _fmt_ratio(s.altman_z_score)),
+            ("Tangible Book Value", _fmt_money(s.tangible_book_value)),
+            ("NCAV", _fmt_money(s.ncav)),
+            ("NCAV/Share", _fmt_money(s.ncav_per_share)),
+        ]))
+        parts.append("</div>")
+
+    # --- Growth & Dilution ---
+    if report.growth:
+        g = report.growth
+        parts.append('<div class="card"><h2>Growth &amp; Dilution</h2>')
+        parts.append(_metric_table([
+            ("Revenue Growth (YoY)", _fmt_pct(g.revenue_growth_yoy)),
+            ("Revenue CAGR 3Y", _fmt_pct(g.revenue_cagr_3y)),
+            ("Revenue CAGR 5Y", _fmt_pct(g.revenue_cagr_5y)),
+            ("Earnings Growth (YoY)", _fmt_pct(g.earnings_growth_yoy)),
+            ("Earnings CAGR 3Y", _fmt_pct(g.earnings_cagr_3y)),
+            ("Earnings CAGR 5Y", _fmt_pct(g.earnings_cagr_5y)),
+            ("FCF Growth (YoY)", _fmt_pct(g.fcf_growth_yoy)),
+            ("Book Value Growth (YoY)", _fmt_pct(g.book_value_growth_yoy)),
+            ("Dividend Growth 5Y", _fmt_pct(g.dividend_growth_5y)),
+            ("Share Dilution (YoY)", _fmt_pct(g.shares_growth_yoy)),
+            ("Share Dilution CAGR 3Y", _fmt_pct(g.shares_growth_3y_cagr)),
+            ("Fully Diluted Shares", _fmt_num(g.fully_diluted_shares, 0)),
+            ("Dilution Ratio", _fmt_ratio(g.dilution_ratio)),
+            ("Production Growth (YoY)", _fmt_pct(g.production_growth_yoy)),
+        ]))
+        parts.append("</div>")
+
+    # --- Share Structure ---
+    if report.share_structure:
+        ss = report.share_structure
+        parts.append('<div class="card"><h2>Share Structure</h2>')
+        parts.append(_metric_table([
+            ("Shares Outstanding", _fmt_num(ss.shares_outstanding, 0)),
+            ("Fully Diluted Shares", _fmt_num(ss.fully_diluted_shares, 0)),
+            ("Warrants Outstanding", _fmt_num(ss.warrants_outstanding, 0)),
+            ("Options Outstanding", _fmt_num(ss.options_outstanding, 0)),
+            ("Float Shares", _fmt_num(ss.float_shares, 0)),
+            ("Insider Ownership", _fmt_pct(ss.insider_ownership_pct)),
+            ("Institutional Ownership", _fmt_pct(ss.institutional_ownership_pct)),
+            ("Assessment", ss.share_structure_assessment or "N/A"),
+            ("Warrant Overhang Risk", ss.warrant_overhang_risk or "N/A"),
+        ]))
+        parts.append("</div>")
+
+    # --- Mining Quality Indicators ---
+    if report.mining_quality:
+        mq = report.mining_quality
+        parts.append('<div class="card"><h2>Mining Quality Indicators</h2>')
+        parts.append(_metric_table([
+            ("Quality Score", f"{mq.quality_score:.0f}/100" if _safe(mq.quality_score) is not None else "N/A"),
+            ("Competitive Position", mq.competitive_position or "N/A"),
+            ("Management Quality", mq.management_quality or "N/A"),
+            ("Management Track Record", mq.management_track_record or "N/A"),
+            ("Insider Ownership", _fmt_pct(mq.insider_ownership_pct)),
+            ("Insider Alignment", mq.insider_alignment or "N/A"),
+            ("Jurisdiction Assessment", mq.jurisdiction_assessment or "N/A"),
+            ("Jurisdiction Score", f"{mq.jurisdiction_score:.0f}" if _safe(mq.jurisdiction_score) is not None else "N/A"),
+            ("Geological Quality", mq.geological_quality or "N/A"),
+            ("Resource Grade", mq.resource_grade_assessment or "N/A"),
+            ("Resource Scale", mq.resource_scale_assessment or "N/A"),
+            ("Financial Position", mq.financial_position or "N/A"),
+            ("Dilution Risk", mq.dilution_risk or "N/A"),
+            ("Share Structure", mq.share_structure_assessment or "N/A"),
+            ("Catalyst Density", mq.catalyst_density or "N/A"),
+            ("Strategic Backing", mq.strategic_backing or "N/A"),
+            ("Asset Backing", mq.asset_backing or "N/A"),
+            ("Niche Position", mq.niche_position or "N/A"),
+            ("Revenue Predictability", mq.revenue_predictability or "N/A"),
+        ]))
+        if mq.near_term_catalysts:
+            parts.append("<p><strong>Near-term Catalysts:</strong></p><ul>")
+            for cat in mq.near_term_catalysts:
+                parts.append(f"<li>{esc(cat)}</li>")
+            parts.append("</ul>")
+        parts.append("</div>")
+
+    # --- Intrinsic Value ---
+    if report.intrinsic_value:
+        iv = report.intrinsic_value
+        parts.append('<div class="card"><h2>Intrinsic Value Estimates</h2>')
+        parts.append(f'<p>Current Price: <strong>{esc(_fmt_money(iv.current_price))}</strong>'
+                     f' &nbsp;|&nbsp; Primary: {esc(iv.primary_method or "N/A")}'
+                     f' &nbsp;|&nbsp; Secondary: {esc(iv.secondary_method or "N/A")}</p>')
+
+        def _iv_entry(name: str, val_field, mos_field) -> Optional[tuple[str, str]]:
+            v = _safe(val_field)
+            if v is None:
+                return None
+            mos = _safe(mos_field)
+            mos_str = f" (MoS: {mos * 100:+.0f}%)" if mos is not None else ""
+            return (name, f"{_fmt_money(val_field)}{mos_str}")
+
+        iv_fields = [
+            _iv_entry("DCF Value", iv.dcf_value, iv.margin_of_safety_dcf),
+            _iv_entry("Graham Number", iv.graham_number, iv.margin_of_safety_graham),
+            _iv_entry("Lynch Fair Value", iv.lynch_fair_value, None),
+            _iv_entry("NCAV Value", iv.ncav_value, iv.margin_of_safety_ncav),
+            _iv_entry("Asset-Based Value", iv.asset_based_value, iv.margin_of_safety_asset),
+            _iv_entry("NAV/Share", iv.nav_per_share, iv.margin_of_safety_nav),
+            _iv_entry("EV/Resource Implied", iv.ev_resource_implied_price, None),
+        ]
+        iv_fields_clean = [f for f in iv_fields if f is not None]
+        if iv_fields_clean:
+            parts.append("<table><tr><th>Method</th><th>Value</th></tr>")
+            for label, val in iv_fields_clean:
+                parts.append(f"<tr><td>{esc(label)}</td><td>{esc(val)}</td></tr>")
+            parts.append("</table>")
+        else:
+            parts.append('<p class="meta">No intrinsic value estimates available.</p>')
+        parts.append("</div>")
+
+    # --- Market Intelligence ---
+    if report.market_intelligence:
+        mi = report.market_intelligence
+        parts.append('<div class="card"><h2>Market Intelligence</h2>')
+
+        # Analyst Consensus
+        parts.append("<h2>Analyst Consensus</h2>")
+        parts.append(_metric_table([
+            ("Recommendation", mi.recommendation or "N/A"),
+            ("Analyst Count", str(mi.analyst_count) if mi.analyst_count is not None else "N/A"),
+            ("Target High", _fmt_money(mi.target_high)),
+            ("Target Low", _fmt_money(mi.target_low)),
+            ("Target Mean", _fmt_money(mi.target_mean)),
+            ("Target Upside", _fmt_pct(mi.target_upside_pct)),
+        ]))
+
+        # Short Interest
+        parts.append("<h2>Short Interest</h2>")
+        parts.append(_metric_table([
+            ("Shares Short", _fmt_num(mi.shares_short, 0)),
+            ("Short % of Float", _fmt_pct(mi.short_pct_of_float)),
+            ("Days to Cover", _fmt_ratio(mi.short_ratio_days)),
+            ("Short Squeeze Risk", mi.short_squeeze_risk or "N/A"),
+        ]))
+
+        # Price & Technicals
+        parts.append("<h2>Price &amp; Technicals</h2>")
+        parts.append(_metric_table([
+            ("Current Price", _fmt_money(mi.price_current)),
+            ("52W High", _fmt_money(mi.price_52w_high)),
+            ("52W Low", _fmt_money(mi.price_52w_low)),
+            ("% from 52W High", _fmt_pct(mi.pct_from_52w_high)),
+            ("% from 52W Low", _fmt_pct(mi.pct_from_52w_low)),
+            ("52W Range Position", _fmt_pct(mi.price_52w_range_position)),
+            ("SMA 50", _fmt_money(mi.sma_50)),
+            ("SMA 200", _fmt_money(mi.sma_200)),
+            ("Above SMA 50", _fmt_bool(mi.above_sma_50)),
+            ("Above SMA 200", _fmt_bool(mi.above_sma_200)),
+            ("Golden Cross", _fmt_bool(mi.golden_cross)),
+            ("Beta", _fmt_ratio(mi.beta)),
+            ("Avg Volume", _fmt_num(mi.avg_volume, 0)),
+            ("10D Avg Volume", _fmt_num(mi.volume_10d_avg, 0)),
+            ("Volume Trend", mi.volume_trend or "N/A"),
+        ]))
+
+        # Insider Activity
+        parts.append("<h2>Insider Activity</h2>")
+        parts.append(_metric_table([
+            ("Insider Buy Signal", mi.insider_buy_signal or "N/A"),
+            ("Net Insider Shares (3M)", _fmt_num(mi.net_insider_shares_3m, 0)),
+        ]))
+        if mi.insider_transactions:
+            parts.append("<table><tr><th>Date</th><th>Insider</th><th>Type</th><th>Shares</th><th>Value</th></tr>")
+            for t in mi.insider_transactions[:8]:
+                parts.append(
+                    f"<tr><td>{esc(t.date)}</td>"
+                    f"<td>{esc(t.insider)}</td>"
+                    f"<td>{esc(t.transaction_type)}</td>"
+                    f"<td>{esc(_fmt_num(t.shares, 0))}</td>"
+                    f"<td>{esc(_fmt_money(t.value))}</td></tr>"
+                )
+            parts.append("</table>")
+
+        # Institutional Holdings
+        if mi.institutions_count or mi.institutions_pct or mi.top_holders:
+            parts.append("<h2>Institutional Holdings</h2>")
+            parts.append(_metric_table([
+                ("Institutions Count", str(mi.institutions_count) if mi.institutions_count is not None else "N/A"),
+                ("Institutional %", _fmt_pct(mi.institutions_pct)),
+            ]))
+            if mi.top_holders:
+                parts.append("<p><strong>Top Holders:</strong></p><ul>")
+                for h in mi.top_holders[:5]:
+                    parts.append(f"<li>{esc(h)}</li>")
+                parts.append("</ul>")
+
+        # Projected Dilution
+        if mi.projected_dilution_annual_pct or mi.financing_warning:
+            parts.append("<h2>Projected Dilution</h2>")
+            parts.append(_metric_table([
+                ("Annual Dilution Rate", _fmt_pct(mi.projected_dilution_annual_pct)),
+                ("Projected Shares (2Y)", _fmt_num(mi.projected_shares_in_2y, 0)),
+            ]))
+            if mi.financing_warning:
+                parts.append(f'<div class="warn">{esc(mi.financing_warning)}</div>')
+
+        # Risk Warnings
+        if mi.risk_warnings:
+            parts.append("<h2>Risk Warnings</h2>")
+            for w_msg in mi.risk_warnings:
+                parts.append(f'<div class="warn">{esc(w_msg)}</div>')
+
+        # Disclaimers
+        if mi.disclaimers:
+            parts.append("<h2>Disclaimers</h2>")
+            for d in mi.disclaimers:
+                parts.append(f'<div class="disclaimer">{esc(d)}</div>')
+
+        parts.append("</div>")  # end market intelligence card
+
+    # --- Conclusion ---
+    parts.append('<div class="card"><h2>Conclusion</h2>')
+
+    # Category scores with visual bars
+    if c.category_scores:
+        parts.append("<table><tr><th>Category</th><th>Score</th><th>Bar</th></tr>")
+        for cat, score in c.category_scores.items():
+            label = cat.replace("_", " ").title()
+            pct = max(0, min(100, score))
+            if pct >= 65:
+                bar_color = "#a6e3a1"
+            elif pct >= 45:
+                bar_color = "#f9e2af"
+            else:
+                bar_color = "#f38ba8"
+            parts.append(
+                f'<tr><td>{esc(label)}</td><td>{score:.1f}</td>'
+                f'<td><span class="score-bg">'
+                f'<span class="score-fill" style="width:{pct:.0f}%;background:{bar_color}"></span>'
+                f'</span></td></tr>'
+            )
+        parts.append("</table>")
+
+    # Strengths & Risks columns
     if c.strengths or c.risks:
-        html += "<h2>Signals</h2><table><tr><th>Strengths</th><th>Risks</th></tr>"
-        for i in range(max(len(c.strengths), len(c.risks))):
-            s = c.strengths[i] if i < len(c.strengths) else ""; r = c.risks[i] if i < len(c.risks) else ""
-            html += f'<tr><td class="s">{s}</td><td class="r">{r}</td></tr>'
-        html += "</table>"
-    html += f'<hr><p class="meta">Generated: {report.fetched_at}<br>Lynx Basic Materials (Lince Investor Suite)</p></body></html>'
-    output_path.write_text(html, encoding="utf-8"); return output_path
+        parts.append('<div class="cols">')
+        if c.strengths:
+            parts.append("<div><h2>Strengths</h2><ul>")
+            for s_item in c.strengths:
+                parts.append(f'<li class="s">{esc(s_item)}</li>')
+            parts.append("</ul></div>")
+        if c.risks:
+            parts.append("<div><h2>Risks</h2><ul>")
+            for r_item in c.risks:
+                parts.append(f'<li class="r">{esc(r_item)}</li>')
+            parts.append("</ul></div>")
+        parts.append("</div>")
+
+    # Screening Checklist
+    if c.screening_checklist:
+        parts.append("<h2>Mining Screening Checklist</h2>")
+        parts.append("<table><tr><th>Check</th><th>Result</th></tr>")
+        for check, result in c.screening_checklist.items():
+            label = check.replace("_", " ").title()
+            if result is True:
+                cls, text = "pass", "PASS"
+            elif result is False:
+                cls, text = "fail", "FAIL"
+            else:
+                cls, text = "na", "N/A"
+            parts.append(f'<tr><td>{esc(label)}</td><td class="{cls}">{text}</td></tr>')
+        parts.append("</table>")
+
+    # Stage & Tier Notes
+    if c.tier_note:
+        parts.append(f'<p class="meta"><strong>Tier:</strong> {esc(c.tier_note)}</p>')
+    if c.stage_note:
+        parts.append(f'<p class="meta"><strong>Stage:</strong> {esc(c.stage_note)}</p>')
+
+    parts.append("</div>")  # end conclusion card
+
+    # --- Footer ---
+    parts.append(f"""
+<hr>
+<p class="meta" style="text-align:center">
+Generated: {esc(report.fetched_at)}<br>
+Lynx Basic Materials (Lince Investor Suite)
+</p>
+</body>
+</html>""")
+
+    output_path.write_text("\n".join(parts), encoding="utf-8")
+    return output_path

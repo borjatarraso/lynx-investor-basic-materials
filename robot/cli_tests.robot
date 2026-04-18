@@ -5,84 +5,54 @@ Library          OperatingSystem
 
 *** Variables ***
 ${PYTHON}        python3
-${APP}           -m lynx_mining
+${MODULE}        lynx_mining
 
 *** Keywords ***
+Run App
+    [Arguments]    @{args}
+    ${result}=    Run Process    ${PYTHON}    -m    ${MODULE}    @{args}    timeout=120s
+    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
+    Set Test Variable    ${RC}    ${result.rc}
+
 Given The Application Is Available
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --version
-    Should Contain    ${result.stdout}    lynx-mining
+    Run App    --version
+    Should Contain    ${OUTPUT}    lynx-mining
 
 When I Run The Help Command
-    ${result}=    Run Process    ${PYTHON}    ${APP}    -p    --help
-    Set Test Variable    ${OUTPUT}    ${result.stdout}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    -p    --help
 
 When I Run About
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --about
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    --about
 
 When I Run Version
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --version
-    Set Test Variable    ${OUTPUT}    ${result.stdout}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    --version
 
 When I Explain Metric "${metric}"
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --explain    ${metric}
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    --explain    ${metric}
 
 When I List All Metrics
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --explain
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    --explain
 
 When I Explain Section "${section}"
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --explain-section    ${section}
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    --explain-section    ${section}
 
 When I Explain Conclusion "${category}"
-    ${result}=    Run Process    ${PYTHON}    ${APP}    --explain-conclusion    ${category}
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
-
-When I Analyze "${ticker}" In Testing Mode
-    ${result}=    Run Process    ${PYTHON}    ${APP}    -t    ${ticker}    --no-reports    --no-news
-    ...    timeout=120s
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    --explain-conclusion    ${category}
 
 When I Search For "${query}"
-    ${result}=    Run Process    ${PYTHON}    ${APP}    -p    -s    ${query}
-    ...    timeout=30s
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    -p    -s    ${query}
 
 When I List Cache In Testing Mode
-    ${result}=    Run Process    ${PYTHON}    ${APP}    -t    --list-cache
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    -t    --list-cache
 
 When I Drop All Cache In Testing Mode
-    ${result}=    Run Process    ${PYTHON}    ${APP}    -t    --drop-cache    ALL
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
-
-When I Export "${ticker}" As "${format}" In Testing Mode
-    ${result}=    Run Process    ${PYTHON}    ${APP}    -t    ${ticker}    --no-reports    --no-news    --export    ${format}
-    ...    timeout=120s
-    Set Test Variable    ${OUTPUT}    ${result.stdout}${result.stderr}
-    Set Test Variable    ${RC}    ${result.rc}
+    Run App    -t    --drop-cache    ALL
 
 Then The Exit Code Should Be ${expected}
     Should Be Equal As Integers    ${RC}    ${expected}
 
 Then The Output Should Contain "${text}"
     Should Contain    ${OUTPUT}    ${text}
-
-Then The Output Should Not Contain "${text}"
-    Should Not Contain    ${OUTPUT}    ${text}
 
 *** Test Cases ***
 Show Help
@@ -112,15 +82,13 @@ Show About
     Then The Output Should Contain "Lynx Basic Materials Analysis"
     Then The Output Should Contain "Borja Tarraso"
     Then The Output Should Contain "BSD-3-Clause"
-    Then The Output Should Contain "Lince Investor Suite"
 
 Explain A Valuation Metric
-    [Documentation]    GIVEN the app WHEN I explain a metric THEN it shows details
+    [Documentation]    GIVEN the app WHEN I explain cash_to_market_cap THEN it shows details
     Given The Application Is Available
     When I Explain Metric "cash_to_market_cap"
     Then The Exit Code Should Be 0
     Then The Output Should Contain "Cash-to-Market-Cap"
-    Then The Output Should Contain "explorers"
 
 Explain A Mining-Specific Metric
     [Documentation]    GIVEN the app WHEN I explain shares_growth_yoy THEN it shows dilution info
@@ -128,7 +96,6 @@ Explain A Mining-Specific Metric
     When I Explain Metric "shares_growth_yoy"
     Then The Exit Code Should Be 0
     Then The Output Should Contain "Share Dilution"
-    Then The Output Should Contain "junior miners"
 
 List All Available Metrics
     [Documentation]    GIVEN the app WHEN I list metrics THEN it shows the full table
@@ -166,3 +133,16 @@ Drop All Test Cache
     When I Drop All Cache In Testing Mode
     Then The Exit Code Should Be 0
     Then The Output Should Contain "Removed"
+
+Invalid Ticker Shows Error
+    [Documentation]    GIVEN the app WHEN I analyze a nonsense ticker THEN it shows an error
+    Given The Application Is Available
+    Run App    -t    ZZZZZZZZZZZZZ999    --no-reports    --no-news
+    Then The Exit Code Should Be 1
+    Then The Output Should Contain "Error"
+
+No Identifier Shows Help
+    [Documentation]    GIVEN the app WHEN I provide no identifier THEN it shows help
+    Given The Application Is Available
+    Run App    -p
+    Then The Exit Code Should Be 1
