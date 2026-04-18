@@ -9,11 +9,18 @@ from lynx_mining.models import AnalysisReport
 class ExportFormat(str, Enum):
     TXT = "txt"; HTML = "html"; PDF = "pdf"
 
-def export_report(report: AnalysisReport, fmt: ExportFormat, output_path: Optional[Path] = None) -> Path:
+def export_report(report: AnalysisReport, fmt, output_path: Optional[Path] = None) -> Path:
+    """Export an analysis report. *fmt* can be an ExportFormat enum or a string ('txt', 'html', 'pdf')."""
     from lynx_mining.core.storage import get_company_dir
     from datetime import datetime
+
+    # Accept both ExportFormat enum and plain string
+    if isinstance(fmt, str):
+        fmt = ExportFormat(fmt)
+
+    ext = fmt.value
     if output_path is None:
-        output_path = get_company_dir(report.profile.ticker) / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{fmt.value}"
+        output_path = get_company_dir(report.profile.ticker) / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if fmt == ExportFormat.TXT:
         from lynx_mining.export.txt_export import export_txt; return export_txt(report, output_path)
