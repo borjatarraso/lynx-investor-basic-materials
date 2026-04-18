@@ -313,6 +313,25 @@ class MarketIntelligence:
     projected_shares_in_2y: Optional[float] = None
     financing_warning: Optional[str] = None
 
+    # Commodity market context
+    commodity_name: Optional[str] = None
+    commodity_price: Optional[float] = None
+    commodity_currency: str = "USD"
+    commodity_52w_high: Optional[float] = None
+    commodity_52w_low: Optional[float] = None
+    commodity_52w_position: Optional[float] = None  # 0-1
+    commodity_ytd_change: Optional[float] = None
+
+    # Sector ETF context
+    sector_etf_name: Optional[str] = None
+    sector_etf_ticker: Optional[str] = None
+    sector_etf_price: Optional[float] = None
+    sector_etf_3m_perf: Optional[float] = None
+    peer_etf_name: Optional[str] = None
+    peer_etf_ticker: Optional[str] = None
+    peer_etf_price: Optional[float] = None
+    peer_etf_3m_perf: Optional[float] = None
+
     # Risk warnings
     risk_warnings: list[str] = field(default_factory=list)
 

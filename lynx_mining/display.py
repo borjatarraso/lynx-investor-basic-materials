@@ -1456,6 +1456,31 @@ def _display_market_intelligence(report):
     if mi is None:
         return
 
+    # --- Commodity Market Context ---
+    if mi.commodity_name or mi.sector_etf_name:
+        t = Table(title="Commodity & Sector Context", show_lines=True, border_style="cyan")
+        t.add_column("Indicator", style="bold", min_width=22, no_wrap=True)
+        t.add_column("Value", min_width=14, no_wrap=True)
+        t.add_column("Context", ratio=1, overflow="fold")
+        if mi.commodity_name and mi.commodity_price:
+            t.add_row("  Commodity", mi.commodity_name, "")
+            t.add_row("  Spot Price", f"${mi.commodity_price:,.2f}", "")
+            if mi.commodity_52w_high and mi.commodity_52w_low:
+                t.add_row("  52W Range", f"${mi.commodity_52w_low:,.2f} - ${mi.commodity_52w_high:,.2f}", "")
+            if mi.commodity_52w_position is not None:
+                pos = mi.commodity_52w_position
+                bar = _range_bar(pos)
+                t.add_row("  Price Position", f"{pos*100:.0f}%", bar)
+        if mi.sector_etf_name:
+            perf_str = f"{mi.sector_etf_3m_perf*100:+.1f}% (3 months)" if mi.sector_etf_3m_perf is not None else ""
+            t.add_row("  Sector ETF", f"{mi.sector_etf_name} ({mi.sector_etf_ticker})",
+                      f"${mi.sector_etf_price:,.2f}  {perf_str}" if mi.sector_etf_price else "")
+        if mi.peer_etf_name:
+            perf_str = f"{mi.peer_etf_3m_perf*100:+.1f}% (3 months)" if mi.peer_etf_3m_perf is not None else ""
+            t.add_row("  Peer ETF", f"{mi.peer_etf_name} ({mi.peer_etf_ticker})",
+                      f"${mi.peer_etf_price:,.2f}  {perf_str}" if mi.peer_etf_price else "")
+        console.print(t)
+
     # --- Analyst Consensus & Price Targets ---
     if mi.analyst_count and mi.analyst_count > 0:
         t = Table(title="Analyst Consensus & Price Targets", show_lines=True, border_style="blue")

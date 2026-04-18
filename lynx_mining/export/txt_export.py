@@ -344,6 +344,21 @@ def export_txt(report: AnalysisReport, output_path: Path) -> Path:
         mi = report.market_intelligence
         lines += _section("MARKET INTELLIGENCE")
 
+        # Commodity & Sector Context
+        if mi.commodity_name or mi.sector_etf_name:
+            lines.append("")
+            lines.append("  Commodity & Sector Context:")
+            if mi.commodity_name and mi.commodity_price:
+                lines.append(_row("Commodity", f"{mi.commodity_name} -- ${mi.commodity_price:,.2f}"))
+                if mi.commodity_52w_high and mi.commodity_52w_low:
+                    lines.append(_row("52W Range", f"${mi.commodity_52w_low:,.2f} - ${mi.commodity_52w_high:,.2f}"))
+            if mi.sector_etf_name:
+                perf = f" ({mi.sector_etf_3m_perf*100:+.1f}% 3m)" if mi.sector_etf_3m_perf is not None else ""
+                lines.append(_row("Sector ETF", f"{mi.sector_etf_name}{perf}"))
+            if mi.peer_etf_name:
+                perf = f" ({mi.peer_etf_3m_perf*100:+.1f}% 3m)" if mi.peer_etf_3m_perf is not None else ""
+                lines.append(_row("Peer ETF", f"{mi.peer_etf_name}{perf}"))
+
         # Analyst Consensus
         lines.append("")
         lines.append("  Analyst Consensus:")

@@ -140,7 +140,7 @@ class TestHTMLExportSecurity:
         with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
             path = export_report(r, ExportFormat.HTML, Path(f.name))
             content = path.read_text()
-            assert "#ffffff" in content
+            assert "#fff" in content or "#ffffff" in content
             assert "word-wrap" in content
 
 

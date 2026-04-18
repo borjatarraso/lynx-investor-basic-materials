@@ -10,6 +10,8 @@ from typing import Optional
 
 from datetime import datetime, timedelta
 
+import yfinance as yf
+
 from lynx_mining.models import (
     CompanyStage, CompanyTier, EfficiencyMetrics, FinancialStatement,
     GrowthMetrics, InsiderTransaction, IntrinsicValue, MarketIntelligence,
@@ -648,6 +650,88 @@ def calc_market_intelligence(
             mi.volume_trend = "Decreasing"
         else:
             mi.volume_trend = "Stable"
+
+    # --- Commodity market context ---
+    from lynx_mining.models import Commodity
+    _COMMODITY_TICKERS = {
+        Commodity.GOLD: ("GC=F", "Gold"),
+        Commodity.SILVER: ("SI=F", "Silver"),
+        Commodity.COPPER: ("HG=F", "Copper"),
+        Commodity.LITHIUM: ("LIT", "Lithium (ETF proxy)"),
+        Commodity.NICKEL: ("^SPGSNI", "Nickel"),
+        Commodity.ZINC: ("^SPGSZN", "Zinc"),
+    }
+    _SECTOR_ETFS = {
+        Commodity.GOLD: [("GDX", "VanEck Gold Miners"), ("GDXJ", "VanEck Junior Gold Miners")],
+        Commodity.SILVER: [("SIL", "Global X Silver Miners"), ("GDXJ", "VanEck Junior Gold Miners")],
+        Commodity.COPPER: [("COPX", "Global X Copper Miners"), ("PICK", "iShares Global Metals")],
+        Commodity.URANIUM: [("URA", "Global X Uranium ETF"), ("URNM", "Sprott Uranium Miners")],
+        Commodity.LITHIUM: [("LIT", "Global X Lithium ETF"), ("PICK", "iShares Global Metals")],
+        Commodity.NICKEL: [("PICK", "iShares Global Metals"), ("XME", "SPDR Metals & Mining")],
+        Commodity.ZINC: [("PICK", "iShares Global Metals"), ("XME", "SPDR Metals & Mining")],
+        Commodity.RARE_EARTHS: [("REMX", "VanEck Rare Earth ETF"), ("PICK", "iShares Global Metals")],
+        Commodity.OTHER: [("XME", "SPDR Metals & Mining"), ("PICK", "iShares Global Metals")],
+    }
+
+    # Detect commodity from the company profile stage parameter
+    company_commodity = Commodity.OTHER
+    try:
+        # The stage parameter tells us what commodity, but we need to detect from info
+        from lynx_mining.models import classify_commodity
+        desc = info.get("longBusinessSummary", "")
+        industry = info.get("industry", "")
+        company_commodity = classify_commodity(desc, industry)
+    except Exception:
+        pass
+
+    # Fetch commodity price
+    try:
+        commodity_pair = _COMMODITY_TICKERS.get(company_commodity)
+        if commodity_pair:
+            ct = yf.Ticker(commodity_pair[0])
+            ci = ct.info or {}
+            mi.commodity_name = commodity_pair[1]
+            mi.commodity_price = ci.get("regularMarketPrice") or ci.get("previousClose")
+            mi.commodity_52w_high = ci.get("fiftyTwoWeekHigh")
+            mi.commodity_52w_low = ci.get("fiftyTwoWeekLow")
+            if mi.commodity_price and mi.commodity_52w_high and mi.commodity_52w_low:
+                rng = mi.commodity_52w_high - mi.commodity_52w_low
+                if rng > 0:
+                    mi.commodity_52w_position = (mi.commodity_price - mi.commodity_52w_low) / rng
+    except Exception:
+        pass
+
+    # Fetch sector ETF performance
+    try:
+        etf_list = _SECTOR_ETFS.get(company_commodity, _SECTOR_ETFS[Commodity.OTHER])
+        if len(etf_list) >= 1:
+            etf_ticker, etf_name = etf_list[0]
+            et = yf.Ticker(etf_ticker)
+            ei = et.info or {}
+            mi.sector_etf_name = etf_name
+            mi.sector_etf_ticker = etf_ticker
+            mi.sector_etf_price = ei.get("regularMarketPrice") or ei.get("previousClose")
+            try:
+                hist = et.history(period="3mo")
+                if hist is not None and len(hist) > 1:
+                    mi.sector_etf_3m_perf = (hist["Close"].iloc[-1] / hist["Close"].iloc[0] - 1)
+            except Exception:
+                pass
+        if len(etf_list) >= 2:
+            etf_ticker2, etf_name2 = etf_list[1]
+            et2 = yf.Ticker(etf_ticker2)
+            ei2 = et2.info or {}
+            mi.peer_etf_name = etf_name2
+            mi.peer_etf_ticker = etf_ticker2
+            mi.peer_etf_price = ei2.get("regularMarketPrice") or ei2.get("previousClose")
+            try:
+                hist2 = et2.history(period="3mo")
+                if hist2 is not None and len(hist2) > 1:
+                    mi.peer_etf_3m_perf = (hist2["Close"].iloc[-1] / hist2["Close"].iloc[0] - 1)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     # ── 6. Projected dilution (pre-revenue miners) ───────────────────
     pre_revenue_stages = (CompanyStage.GRASSROOTS, CompanyStage.EXPLORER, CompanyStage.DEVELOPER)

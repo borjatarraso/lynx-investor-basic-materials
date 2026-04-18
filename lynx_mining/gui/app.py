@@ -1753,6 +1753,22 @@ class LynxMiningGUI:
 
         idx = 0
 
+        # Commodity & Sector Context
+        if mi.commodity_name or mi.sector_etf_name:
+            tk.Label(frame, text="  Commodity & Sector Context", font=FONT_SECTION,
+                     bg=BG_CARD, fg=ACCENT, anchor=tk.W).pack(fill=tk.X, padx=12, pady=(4, 2))
+            if mi.commodity_name and mi.commodity_price:
+                self._add_row(frame, idx, "Commodity", f"{mi.commodity_name} — ${mi.commodity_price:,.2f}"); idx += 1
+                if mi.commodity_52w_high and mi.commodity_52w_low:
+                    self._add_row(frame, idx, "52W Range", f"${mi.commodity_52w_low:,.2f} — ${mi.commodity_52w_high:,.2f}"); idx += 1
+            if mi.sector_etf_name and mi.sector_etf_price:
+                perf = f"  ({mi.sector_etf_3m_perf*100:+.1f}% 3m)" if mi.sector_etf_3m_perf is not None else ""
+                self._add_row(frame, idx, "Sector ETF", f"{mi.sector_etf_name} — ${mi.sector_etf_price:,.2f}{perf}"); idx += 1
+            if mi.peer_etf_name and mi.peer_etf_price:
+                perf = f"  ({mi.peer_etf_3m_perf*100:+.1f}% 3m)" if mi.peer_etf_3m_perf is not None else ""
+                self._add_row(frame, idx, "Peer ETF", f"{mi.peer_etf_name} — ${mi.peer_etf_price:,.2f}{perf}"); idx += 1
+            sep = tk.Frame(frame, bg=BORDER, height=1); sep.pack(fill=tk.X, padx=12, pady=4)
+
         # Analyst consensus
         if mi.analyst_count and mi.analyst_count > 0:
             rec = (mi.recommendation or "N/A").replace("_", " ").title()

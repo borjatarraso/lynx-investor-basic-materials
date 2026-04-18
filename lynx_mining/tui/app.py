@@ -1302,6 +1302,24 @@ def _build_market_intelligence(r: AnalysisReport) -> Static:
 
     parts = []
 
+    # Commodity & Sector Context
+    if mi.commodity_name or mi.sector_etf_name:
+        t = RichTable(show_lines=True, border_style="cyan", expand=True, title="Commodity & Sector Context")
+        t.add_column("Indicator", style="bold", width=22, no_wrap=True)
+        t.add_column("Value", width=14, no_wrap=True)
+        t.add_column("Context", ratio=1, overflow="fold")
+        if mi.commodity_name and mi.commodity_price:
+            t.add_row("Commodity", mi.commodity_name, f"${mi.commodity_price:,.2f}")
+            if mi.commodity_52w_high and mi.commodity_52w_low:
+                t.add_row("52W Range", f"${mi.commodity_52w_low:,.2f} - ${mi.commodity_52w_high:,.2f}", "")
+        if mi.sector_etf_name:
+            perf = f"{mi.sector_etf_3m_perf*100:+.1f}% (3m)" if mi.sector_etf_3m_perf is not None else ""
+            t.add_row("Sector ETF", f"{mi.sector_etf_name}", f"${mi.sector_etf_price:,.2f}  {perf}" if mi.sector_etf_price else "")
+        if mi.peer_etf_name:
+            perf = f"{mi.peer_etf_3m_perf*100:+.1f}% (3m)" if mi.peer_etf_3m_perf is not None else ""
+            t.add_row("Peer ETF", f"{mi.peer_etf_name}", f"${mi.peer_etf_price:,.2f}  {perf}" if mi.peer_etf_price else "")
+        parts.append(t)
+
     # Analyst Consensus
     if mi.analyst_count and mi.analyst_count > 0:
         t = RichTable(show_lines=True, border_style="blue", expand=True, title="Analyst Consensus")

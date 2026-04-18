@@ -99,50 +99,99 @@ def _metric_table(fields: list[tuple[str, str]]) -> str:
 # ---------------------------------------------------------------------------
 
 CSS = """
-@media print { body { padding: 12px; } .card { break-inside: avoid; } }
-*{box-sizing:border-box}
-body{
-  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
-  max-width:960px;margin:0 auto;padding:24px;
-  background:#ffffff;color:#1a1a2e;line-height:1.6;
+@page { margin: 20mm; }
+@media print {
+  body { padding: 0; font-size: 9pt; }
+  .card { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
+  .no-print { display: none; }
 }
-h1{color:#1a3a6e;margin-bottom:4px;font-size:1.6em}
-h2{color:#2a6a3e;margin:0 0 8px 0;font-size:1.15em;border-bottom:2px solid #ddd;padding-bottom:4px}
-.card{
-  background:#fafafa;border:1px solid #ddd;border-radius:8px;
-  padding:18px 22px;margin-bottom:18px;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', -apple-system, system-ui, sans-serif;
+  max-width: 920px; margin: 0 auto; padding: 32px 28px;
+  background: #fff; color: #1a1a2e; line-height: 1.55;
+  font-size: 13px;
 }
-table{width:100%;border-collapse:collapse;margin-bottom:8px;table-layout:fixed}
-th,td{padding:7px 10px;text-align:left;border-bottom:1px solid #ddd;word-wrap:break-word;overflow-wrap:break-word}
-th{background:#eef2f7;color:#2a2a5e;font-weight:600;font-size:0.92em}
-td{font-size:0.93em;color:#1a1a2e}
-tr:nth-child(even){background:#f5f7fa}
-tr:hover{background:#e8ecf2}
-.verdict-card{
-  text-align:center;padding:20px;border-radius:8px;margin:18px 0;
-  font-size:1.4em;font-weight:700;
+h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #1a2744; font-size: 1.75em; font-weight: 700;
+  margin-bottom: 2px; letter-spacing: -0.02em;
+  border-bottom: 3px solid #1a2744; padding-bottom: 8px;
 }
-.verdict-strong-buy{background:#e6f9ed;color:#1a7a3a;border:2px solid #2a9a4e}
-.verdict-buy{background:#e6f5f0;color:#1a6a5a;border:2px solid #2a8a6e}
-.verdict-hold{background:#fef9e6;color:#7a6a1a;border:2px solid #baa020}
-.verdict-caution{background:#fef0e6;color:#8a5a1a;border:2px solid #ca7a20}
-.verdict-avoid{background:#fde8ec;color:#8a1a2a;border:2px solid #c03050}
-.score-bar{
-  display:inline-block;height:14px;border-radius:3px;vertical-align:middle;
+h2 {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #1a2744; font-size: 1.05em; font-weight: 600;
+  margin: 0 0 10px 0; padding-bottom: 5px;
+  border-bottom: 1px solid #d0d5dd;
+  text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.88em;
 }
-.score-bg{background:#ddd;width:120px;display:inline-block;height:14px;border-radius:3px;position:relative;vertical-align:middle}
-.score-fill{height:14px;border-radius:3px;position:absolute;left:0;top:0}
-.s{color:#1a7a3a}.r{color:#a02040}
-.pass{color:#1a7a3a;font-weight:700}
-.fail{color:#a02040;font-weight:700}
-.na{color:#888;font-weight:600}
-.meta{color:#666;font-size:0.88em}
-.warn{color:#8a1a2a;background:#fde8ec;padding:8px 12px;border-radius:6px;border-left:3px solid #c03050;margin:6px 0}
-.disclaimer{color:#666;font-size:0.82em;padding:6px 12px;border-left:2px solid #ccc;margin:4px 0}
-.cols{display:flex;gap:18px;flex-wrap:wrap}
-.cols>div{flex:1;min-width:240px}
-ul{margin:4px 0;padding-left:20px}li{margin:2px 0}
-a{color:#1a5a9e}
+.subtitle {
+  color: #5a6378; font-size: 0.92em; margin-bottom: 18px;
+  font-style: italic;
+}
+.card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+  padding: 16px 20px; margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+table {
+  width: 100%; border-collapse: collapse; margin-bottom: 6px;
+  table-layout: fixed;
+}
+th, td {
+  padding: 6px 10px; text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  word-wrap: break-word; overflow-wrap: break-word;
+  font-size: 0.92em; vertical-align: top;
+}
+th {
+  background: #f3f4f6; color: #374151; font-weight: 600;
+  font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.04em;
+}
+tr:nth-child(even) { background: #f9fafb; }
+td:first-child { font-weight: 500; color: #374151; }
+td:nth-child(2) { color: #111827; font-variant-numeric: tabular-nums; }
+.verdict-card {
+  text-align: center; padding: 18px; border-radius: 6px; margin: 16px 0;
+  font-family: Georgia, serif; font-size: 1.35em; font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.verdict-strong-buy { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.verdict-buy { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.verdict-hold { background: #fffbeb; color: #78350f; border: 1px solid #fde68a; }
+.verdict-caution { background: #fff7ed; color: #7c2d12; border: 1px solid #fed7aa; }
+.verdict-avoid { background: #fef2f2; color: #7f1d1d; border: 1px solid #fecaca; }
+.score-bg {
+  background: #e5e7eb; width: 100px; display: inline-block; height: 10px;
+  border-radius: 5px; position: relative; vertical-align: middle;
+  overflow: hidden;
+}
+.score-fill {
+  height: 10px; border-radius: 5px; position: absolute; left: 0; top: 0;
+}
+.s { color: #065f46; } .r { color: #7f1d1d; }
+.pass { color: #065f46; font-weight: 600; }
+.fail { color: #991b1b; font-weight: 600; }
+.na { color: #9ca3af; }
+.meta { color: #6b7280; font-size: 0.85em; }
+.warn {
+  color: #7f1d1d; background: #fef2f2; padding: 8px 14px;
+  border-radius: 4px; border-left: 3px solid #dc2626;
+  margin: 5px 0; font-size: 0.9em;
+}
+.disclaimer {
+  color: #6b7280; font-size: 0.8em; font-style: italic;
+  padding: 5px 14px; border-left: 2px solid #d1d5db; margin: 3px 0;
+}
+.cols { display: flex; gap: 16px; flex-wrap: wrap; }
+.cols > div { flex: 1; min-width: 220px; }
+ul { margin: 4px 0; padding-left: 18px; }
+li { margin: 2px 0; font-size: 0.92em; }
+a { color: #1a2744; text-decoration: underline; }
+.footer {
+  margin-top: 24px; padding-top: 12px; border-top: 1px solid #d1d5db;
+  text-align: center; color: #9ca3af; font-size: 0.78em;
+}
 """
 
 
@@ -397,6 +446,22 @@ Jurisdiction: {esc(p.jurisdiction_tier.value)}
         mi = report.market_intelligence
         parts.append('<div class="card"><h2>Market Intelligence</h2>')
 
+        # Commodity & Sector Context
+        if mi.commodity_name or mi.sector_etf_name:
+            parts.append("<h2>Commodity &amp; Sector Context</h2>")
+            ctx_fields = []
+            if mi.commodity_name and mi.commodity_price:
+                ctx_fields.append(("Commodity", f"{mi.commodity_name} — ${mi.commodity_price:,.2f}"))
+                if mi.commodity_52w_high and mi.commodity_52w_low:
+                    ctx_fields.append(("52W Range", f"${mi.commodity_52w_low:,.2f} — ${mi.commodity_52w_high:,.2f}"))
+            if mi.sector_etf_name:
+                perf = f" ({mi.sector_etf_3m_perf*100:+.1f}% 3m)" if mi.sector_etf_3m_perf is not None else ""
+                ctx_fields.append(("Sector ETF", f"{mi.sector_etf_name} — ${mi.sector_etf_price:,.2f}{perf}" if mi.sector_etf_price else mi.sector_etf_name))
+            if mi.peer_etf_name:
+                perf = f" ({mi.peer_etf_3m_perf*100:+.1f}% 3m)" if mi.peer_etf_3m_perf is not None else ""
+                ctx_fields.append(("Peer ETF", f"{mi.peer_etf_name} — ${mi.peer_etf_price:,.2f}{perf}" if mi.peer_etf_price else mi.peer_etf_name))
+            parts.append(_metric_table(ctx_fields))
+
         # Analyst Consensus
         parts.append("<h2>Analyst Consensus</h2>")
         parts.append(_metric_table([
@@ -502,11 +567,11 @@ Jurisdiction: {esc(p.jurisdiction_tier.value)}
             label = cat.replace("_", " ").title()
             pct = max(0, min(100, score))
             if pct >= 65:
-                bar_color = "#2a9a4e"
+                bar_color = "#059669"
             elif pct >= 45:
-                bar_color = "#baa020"
+                bar_color = "#d97706"
             else:
-                bar_color = "#c03050"
+                bar_color = "#dc2626"
             parts.append(
                 f'<tr><td>{esc(label)}</td><td>{score:.1f}</td>'
                 f'<td><span class="score-bg">'
@@ -555,11 +620,11 @@ Jurisdiction: {esc(p.jurisdiction_tier.value)}
 
     # --- Footer ---
     parts.append(f"""
-<hr>
-<p class="meta" style="text-align:center">
-Generated: {esc(report.fetched_at)}<br>
-Lynx Basic Materials (Lince Investor Suite)
-</p>
+<div class="footer">
+  Lynx Basic Materials Analysis &mdash; Lince Investor Suite<br>
+  Report generated: {esc(report.fetched_at)}<br>
+  This report is for informational purposes only and does not constitute investment advice.
+</div>
 </body>
 </html>""")
 

@@ -2,6 +2,32 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [0.5] - 2026-04-19
+
+### Added
+- **Commodity market context** in all modes (console, interactive, TUI, GUI, exports):
+  - Live commodity spot prices (Gold, Silver, Copper, Lithium, Nickel, Zinc) from yfinance futures
+  - Commodity 52-week range with visual position bar
+  - Sector ETF performance (GDX, SIL, COPX, URA, URNM, LIT, PICK, XME, REMX) with 3-month returns
+  - Peer ETF comparison for cross-referencing sector momentum
+  - Automatic commodity detection from company description links to the right market data
+- **Commodity context in exports**: TXT and HTML exports include commodity & sector context section
+
+### Changed
+- **HTML export redesigned** with professional financial report styling:
+  - Georgia serif headings with navy (#1a2744) color palette
+  - Subtle card shadows and thin borders instead of colored borders
+  - Elegant score bars with green/amber/red professional colors
+  - Understated verdict cards (pastel backgrounds, not garish)
+  - Small-caps uppercase section headers with letter spacing
+  - Professional footer with branding and disclaimer
+  - Print-optimized with @media print rules and card break-inside:avoid
+  - Alternating table row backgrounds (#f9fafb)
+  - Proper typographic hierarchy
+
+### Fixed
+- Robot export tests: Updated CSS assertions to match new styling (`#fff` vs `#ffffff`, spaced vs compact property values)
+
 ## [0.4] - 2026-04-19
 
 ### Fixed
