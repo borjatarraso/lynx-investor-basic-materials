@@ -83,7 +83,7 @@ def run_interactive():
             a = get_about_text()
             logo = a.get('logo_ascii', '')
             logo_block = f"[bold green]{logo}[/]\n" if logo else ""
-            console.print(P(f"{logo_block}[bold blue]{a['name']}[/]\n[dim]{a['suite']} v{a['version']}[/]\n\n[bold]By:[/] {a['author']}\n\n[dim]{a['description']}[/]",
+            console.print(P(f"{logo_block}[bold blue]{a['name']} v{a['version']}[/]\n[dim]Part of {a['suite']} v{a['suite_version']}[/]\n\n[bold]By:[/] {a['author']}\n\n[dim]{a['description']}[/]",
                             title="[bold]About[/]", border_style="blue"))
         elif cmd == "explain":
             from lynx_mining.metrics.explanations import get_explanation
