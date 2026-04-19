@@ -7,7 +7,7 @@ from html import escape as esc
 from pathlib import Path
 from typing import Optional
 
-from lynx_mining.models import AnalysisReport, CompanyStage
+from lynx_mining.models import AnalysisReport, CompanyStage, Severity
 
 
 # ---------------------------------------------------------------------------
@@ -80,25 +80,41 @@ def _ga(obj, key, default=""):
     return getattr(obj, key, default)
 
 
-def _tr(label: str, value: str) -> str:
-    """Table row with label and value."""
-    return f"<tr><td>{esc(label)}</td><td>{esc(value)}</td></tr>"
+_SEV_HTML = {
+    Severity.CRITICAL: '<span class="sev-critical">***CRITICAL***</span>',
+    Severity.WARNING: '<span class="sev-warning">*WARNING*</span>',
+    Severity.WATCH: '<span class="sev-watch">[WATCH]</span>',
+    Severity.OK: '<span class="sev-ok">[OK]</span>',
+    Severity.STRONG: '<span class="sev-strong">[STRONG]</span>',
+    Severity.NA: '',
+}
 
 
-def _metric_rows(fields: list[tuple[str, str]]) -> str:
-    """Generate table rows, skipping N/A values."""
+def _tr(label: str, value: str, sev: Severity = Severity.NA) -> str:
+    """Table row with label, value, and severity."""
+    sev_cell = _SEV_HTML.get(sev, '')
+    return f"<tr><td>{esc(label)}</td><td>{esc(value)}</td><td>{sev_cell}</td></tr>"
+
+
+def _metric_rows(fields) -> str:
+    """Generate table rows, skipping N/A values. Accepts 2-tuples or 3-tuples."""
     rows = []
-    for label, val in fields:
+    for item in fields:
+        if len(item) == 3:
+            label, val, sev = item
+        else:
+            label, val = item
+            sev = Severity.NA
         if val != "N/A":
-            rows.append(_tr(label, val))
+            rows.append(_tr(label, val, sev))
     return "\n".join(rows)
 
 
-def _metric_table(fields: list[tuple[str, str]]) -> str:
+def _metric_table(fields) -> str:
     body = _metric_rows(fields)
     if not body:
         return '<p class="meta">No data available.</p>'
-    return f"<table>\n<tr><th>Metric</th><th>Value</th></tr>\n{body}\n</table>"
+    return f"<table>\n<tr><th>Metric</th><th>Value</th><th>Severity</th></tr>\n{body}\n</table>"
 
 
 # ---------------------------------------------------------------------------
@@ -114,22 +130,20 @@ CSS = """
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: 'Segoe UI', -apple-system, system-ui, sans-serif;
-  max-width: 920px; margin: 0 auto; padding: 32px 28px;
+  font-family: 'Consolas', 'Monaco', 'Menlo', 'Noto Sans Mono', monospace;
+  max-width: 1100px; margin: 0 auto; padding: 24px 40px;
   background: #fff; color: #1a1a2e; line-height: 1.55;
-  font-size: 13px;
+  font-size: 14px;
 }
 h1 {
-  font-family: Georgia, 'Times New Roman', serif;
-  color: #1a2744; font-size: 1.75em; font-weight: 700;
+  color: #2c5282; font-size: 1.75em; font-weight: 700;
   margin-bottom: 2px; letter-spacing: -0.02em;
-  border-bottom: 3px solid #1a2744; padding-bottom: 8px;
+  border-bottom: 2px solid #cbd5e0; padding-bottom: 8px;
 }
 h2 {
-  font-family: Georgia, 'Times New Roman', serif;
-  color: #1a2744; font-size: 1.05em; font-weight: 600;
+  color: #2c5282; font-size: 1.05em; font-weight: 600;
   margin: 0 0 10px 0; padding-bottom: 5px;
-  border-bottom: 1px solid #d0d5dd;
+  border-bottom: 1px solid #cbd5e0;
   text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.88em;
 }
 .subtitle {
@@ -199,6 +213,11 @@ a { color: #1a2744; text-decoration: underline; }
   margin-top: 24px; padding-top: 12px; border-top: 1px solid #d1d5db;
   text-align: center; color: #9ca3af; font-size: 0.78em;
 }
+.sev-critical { color: #dc2626; font-weight: bold; text-transform: uppercase; }
+.sev-warning { color: #ea580c; font-weight: bold; }
+.sev-watch { color: #ca8a04; font-weight: 600; }
+.sev-ok { color: #16a34a; font-weight: 600; }
+.sev-strong { color: #6b7280; font-weight: 500; }
 """
 
 
@@ -268,27 +287,31 @@ Jurisdiction: {esc(_ev(p.jurisdiction_tier))}
 
     # --- Valuation Metrics ---
     if report.valuation:
+        from lynx_mining.display import (
+            _s_pe, _s_pb, _s_ps, _s_pfcf, _s_ev as _sev_ev, _s_evrev, _s_peg,
+            _s_ey, _s_divy, _s_ptb, _s_pncav, _s_ctm,
+        )
         v = report.valuation
         parts.append('<div class="card"><h2>Valuation Metrics</h2>')
         parts.append(_metric_table([
-            ("P/E (Trailing)", _fmt_ratio(v.pe_trailing)),
-            ("P/E (Forward)", _fmt_ratio(v.pe_forward)),
-            ("P/B Ratio", _fmt_ratio(v.pb_ratio)),
-            ("P/S Ratio", _fmt_ratio(v.ps_ratio)),
-            ("P/FCF", _fmt_ratio(v.p_fcf)),
-            ("EV/EBITDA", _fmt_ratio(v.ev_ebitda)),
-            ("EV/Revenue", _fmt_ratio(v.ev_revenue)),
-            ("PEG Ratio", _fmt_ratio(v.peg_ratio)),
-            ("Dividend Yield", _fmt_pct(v.dividend_yield)),
-            ("Earnings Yield", _fmt_pct(v.earnings_yield)),
+            ("P/E (Trailing)", _fmt_ratio(v.pe_trailing), _s_pe(v.pe_trailing)),
+            ("P/E (Forward)", _fmt_ratio(v.pe_forward), _s_pe(v.pe_forward)),
+            ("P/B Ratio", _fmt_ratio(v.pb_ratio), _s_pb(v.pb_ratio)),
+            ("P/S Ratio", _fmt_ratio(v.ps_ratio), _s_ps(v.ps_ratio)),
+            ("P/FCF", _fmt_ratio(v.p_fcf), _s_pfcf(v.p_fcf)),
+            ("EV/EBITDA", _fmt_ratio(v.ev_ebitda), _sev_ev(v.ev_ebitda)),
+            ("EV/Revenue", _fmt_ratio(v.ev_revenue), _s_evrev(v.ev_revenue)),
+            ("PEG Ratio", _fmt_ratio(v.peg_ratio), _s_peg(v.peg_ratio)),
+            ("Dividend Yield", _fmt_pct(v.dividend_yield), _s_divy(v.dividend_yield)),
+            ("Earnings Yield", _fmt_pct(v.earnings_yield), _s_ey(v.earnings_yield)),
             ("Enterprise Value", _fmt_money(v.enterprise_value)),
             ("Market Cap", _fmt_money(v.market_cap)),
-            ("P/Tangible Book", _fmt_ratio(v.price_to_tangible_book)),
-            ("P/NCAV", _fmt_ratio(v.price_to_ncav)),
+            ("P/Tangible Book", _fmt_ratio(v.price_to_tangible_book), _s_ptb(v.price_to_tangible_book)),
+            ("P/NCAV", _fmt_ratio(v.price_to_ncav), _s_pncav(v.price_to_ncav)),
             ("EV/Resource (oz)", _fmt_money(v.ev_per_resource_oz)),
             ("EV/Resource (lb)", _fmt_money(v.ev_per_resource_lb)),
             ("P/NAV", _fmt_ratio(v.p_nav)),
-            ("Cash/Market Cap", _fmt_pct(v.cash_to_market_cap)),
+            ("Cash/Market Cap", _fmt_pct(v.cash_to_market_cap), _s_ctm(v.cash_to_market_cap)),
             ("NAV/Share", _fmt_money(v.nav_per_share)),
         ]))
         parts.append("</div>")

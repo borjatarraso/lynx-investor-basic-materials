@@ -48,5 +48,5 @@ class TestTierFallback:
         assert get_relevance("some_unknown_metric", CompanyTier.MID, "valuation", CompanyStage.PRODUCER) == Relevance.RELEVANT
 
     def test_pb_ratio_critical_for_small(self):
-        # No stage override for PRODUCER pb_ratio, falls through to tier
-        assert get_relevance("pb_ratio", CompanyTier.SMALL, "valuation", CompanyStage.PRODUCER) in [Relevance.CRITICAL, Relevance.RELEVANT]
+        # Stage override for PRODUCER pb_ratio = IMPORTANT
+        assert get_relevance("pb_ratio", CompanyTier.SMALL, "valuation", CompanyStage.PRODUCER) in [Relevance.CRITICAL, Relevance.IMPORTANT, Relevance.RELEVANT]

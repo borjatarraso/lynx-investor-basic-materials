@@ -17,7 +17,7 @@ from rich.table import Table
 from rich.text import Text
 
 from lynx_mining.metrics.relevance import get_relevance
-from lynx_mining.models import AnalysisReport, CompanyStage, CompanyTier, Relevance
+from lynx_mining.models import AnalysisReport, CompanyStage, CompanyTier, Relevance, Severity
 
 console = Console()
 
@@ -25,10 +25,45 @@ WARN = "\u26a0"
 
 _STYLE = {
     Relevance.CRITICAL: ("bold", "[bold cyan]*[/] "),
+    Relevance.IMPORTANT: ("", "[#ff8800]![/] "),
     Relevance.RELEVANT: ("", "  "),
     Relevance.CONTEXTUAL: ("dim", "  "),
     Relevance.IRRELEVANT: ("dim strike", "  "),
 }
+
+# ---------------------------------------------------------------------------
+# Impact column display — maps Relevance to colored Impact text
+# ---------------------------------------------------------------------------
+
+_IMPACT_DISPLAY = {
+    Relevance.CRITICAL: "[bold blink red]Critical[/]",
+    Relevance.IMPORTANT: "[bold #ff8800]Important[/]",
+    Relevance.RELEVANT: "[bold yellow]Relevant[/]",
+    Relevance.CONTEXTUAL: "[green]Informational[/]",
+    Relevance.IRRELEVANT: "[dim]Irrelevant[/]",
+}
+
+
+def _impact_text(relevance: Relevance) -> str:
+    return _IMPACT_DISPLAY.get(relevance, "")
+
+
+# ---------------------------------------------------------------------------
+# Severity display — formats severity tag with color
+# ---------------------------------------------------------------------------
+
+_SEVERITY_FMT = {
+    Severity.CRITICAL: "[bold red]***CRITICAL***[/]",
+    Severity.WARNING: "[bold #ff8800]*WARNING*[/]",
+    Severity.WATCH: "[bold yellow][WATCH][/]",
+    Severity.OK: "[bold green][OK][/]",
+    Severity.STRONG: "[dim][STRONG][/]",
+    Severity.NA: "[dim]N/A[/]",
+}
+
+
+def _severity_text(sev: Severity) -> str:
+    return _SEVERITY_FMT.get(sev, "")
 
 
 # ---------------------------------------------------------------------------
@@ -118,18 +153,21 @@ def _mos_color(val):
 # Row helper — handles relevance-based styling + IRRELEVANT hiding
 # ---------------------------------------------------------------------------
 
-def _add_metric_row(table, label, value, assessment, relevance, *, has_assessment_col=True):
+def _add_metric_row(table, label, value, assessment, relevance, *,
+                    has_assessment_col=True, severity=Severity.NA):
     """Add a styled row to a table, hiding IRRELEVANT metrics entirely."""
     if relevance == Relevance.IRRELEVANT:
         return
     style, prefix = _STYLE[relevance]
     sl = f"{prefix}[{style}]{label}[/]" if style else f"{prefix}{label}"
     sv = f"[{style}]{value}[/]" if style else value
+    sev_tag = _severity_text(severity)
+    impact = _impact_text(relevance)
     if has_assessment_col:
         sa = f"[{style}]{assessment}[/]" if style else assessment
-        table.add_row(sl, sv, sa)
+        table.add_row(sl, sv, sa, sev_tag, impact)
     else:
-        table.add_row(sl, sv)
+        table.add_row(sl, sv, sev_tag, impact)
 
 
 # ---------------------------------------------------------------------------
@@ -789,6 +827,354 @@ def _a_ss_assessment(val):
 
 
 # ---------------------------------------------------------------------------
+# Severity determination functions — map metric values to Severity levels
+# ---------------------------------------------------------------------------
+
+def _s_pe(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 8: return Severity.STRONG
+    if val < 18: return Severity.OK
+    if val < 30: return Severity.WATCH
+    if val < 40: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_pb(val):
+    if _isna(val): return Severity.NA
+    if val < 0.5: return Severity.STRONG
+    if val < 1.0: return Severity.STRONG
+    if val < 1.5: return Severity.OK
+    if val < 2.5: return Severity.WATCH
+    if val < 4.0: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_ps(val):
+    if _isna(val): return Severity.NA
+    if val < 1.0: return Severity.STRONG
+    if val < 2.0: return Severity.OK
+    if val < 4.0: return Severity.WATCH
+    if val < 8.0: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_pfcf(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 8: return Severity.STRONG
+    if val < 15: return Severity.OK
+    if val < 25: return Severity.WATCH
+    return Severity.WARNING
+
+def _s_ev(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 4: return Severity.STRONG
+    if val < 6: return Severity.OK
+    if val < 9: return Severity.WATCH
+    if val < 14: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_evrev(val):
+    if _isna(val): return Severity.NA
+    if val < 1.5: return Severity.STRONG
+    if val < 3.0: return Severity.OK
+    if val < 6.0: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_peg(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 0.5: return Severity.STRONG
+    if val < 1.0: return Severity.OK
+    if val < 2.0: return Severity.WATCH
+    return Severity.WARNING
+
+def _s_ey(val):
+    if _isna(val): return Severity.NA
+    if val > 0.12: return Severity.STRONG
+    if val > 0.08: return Severity.OK
+    if val > 0.05: return Severity.WATCH
+    if val > 0: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_divy(val):
+    if _isna(val): return Severity.NA
+    if val == 0: return Severity.NA
+    if val > 0.06: return Severity.WATCH  # Too high can be unsustainable
+    if val > 0.03: return Severity.STRONG
+    if val > 0.01: return Severity.OK
+    return Severity.NA
+
+def _s_ptb(val):
+    if _isna(val): return Severity.NA
+    if val < 0.5: return Severity.STRONG
+    if val < 1.0: return Severity.OK
+    if val < 2.0: return Severity.WATCH
+    return Severity.WARNING
+
+def _s_pncav(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 0.67: return Severity.STRONG
+    if val < 1.0: return Severity.OK
+    if val < 1.5: return Severity.WATCH
+    return Severity.NA
+
+def _s_ctm(val):
+    if _isna(val): return Severity.NA
+    if val > 0.60: return Severity.STRONG
+    if val > 0.40: return Severity.STRONG
+    if val > 0.25: return Severity.OK
+    if val > 0.15: return Severity.WATCH
+    if val > 0.05: return Severity.WARNING
+    return Severity.CRITICAL
+
+# --- Profitability severity ---
+
+def _s_roe(val):
+    if _isna(val): return Severity.NA
+    if val < -0.20: return Severity.CRITICAL
+    if val < 0: return Severity.WARNING
+    if val < 0.05: return Severity.WATCH
+    if val < 0.12: return Severity.OK
+    if val < 0.20: return Severity.OK
+    return Severity.STRONG
+
+def _s_roa(val):
+    if _isna(val): return Severity.NA
+    if val < -0.10: return Severity.CRITICAL
+    if val < 0: return Severity.WARNING
+    if val < 0.03: return Severity.WATCH
+    if val < 0.08: return Severity.OK
+    return Severity.STRONG
+
+def _s_roic(val):
+    if _isna(val): return Severity.NA
+    if val < -0.10: return Severity.CRITICAL
+    if val < 0: return Severity.WARNING
+    if val < 0.06: return Severity.WATCH
+    if val < 0.12: return Severity.OK
+    return Severity.STRONG
+
+def _s_gm(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 0.15: return Severity.WARNING
+    if val < 0.25: return Severity.WATCH
+    if val < 0.40: return Severity.OK
+    if val < 0.55: return Severity.OK
+    return Severity.STRONG
+
+def _s_om(val):
+    if _isna(val): return Severity.NA
+    if val < -0.50: return Severity.CRITICAL
+    if val < 0: return Severity.WARNING
+    if val < 0.10: return Severity.WATCH
+    if val < 0.25: return Severity.OK
+    return Severity.STRONG
+
+def _s_nm(val):
+    if _isna(val): return Severity.NA
+    if val < -0.50: return Severity.CRITICAL
+    if val < 0: return Severity.WARNING
+    if val < 0.05: return Severity.WATCH
+    if val < 0.15: return Severity.OK
+    return Severity.STRONG
+
+def _s_fcfm(val):
+    if _isna(val): return Severity.NA
+    if val < -0.50: return Severity.CRITICAL
+    if val < 0: return Severity.WARNING
+    if val < 0.05: return Severity.WATCH
+    if val < 0.15: return Severity.OK
+    return Severity.STRONG
+
+def _s_ebitdam(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 0.15: return Severity.WARNING
+    if val < 0.30: return Severity.WATCH
+    if val < 0.45: return Severity.OK
+    return Severity.STRONG
+
+# --- Solvency severity ---
+
+def _s_de(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val == 0: return Severity.STRONG
+    if val < 0.20: return Severity.STRONG
+    if val < 0.50: return Severity.OK
+    if val < 1.00: return Severity.WATCH
+    if val < 2.00: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_cr(val):
+    if _isna(val): return Severity.NA
+    if val > 3.0: return Severity.STRONG
+    if val > 2.0: return Severity.OK
+    if val > 1.5: return Severity.WATCH
+    if val > 1.0: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_qr(val):
+    if _isna(val): return Severity.NA
+    if val > 3.0: return Severity.STRONG
+    if val > 1.5: return Severity.OK
+    if val > 1.0: return Severity.WATCH
+    if val > 0.5: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_ic(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 1.5: return Severity.CRITICAL
+    if val < 3.0: return Severity.WARNING
+    if val < 6.0: return Severity.WATCH
+    if val < 12.0: return Severity.OK
+    return Severity.STRONG
+
+def _s_burn(val):
+    if _isna(val): return Severity.NA
+    if val >= 0: return Severity.STRONG
+    abv = abs(val)
+    if abv < 2_000_000: return Severity.WATCH
+    if abv < 10_000_000: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_runway(val):
+    if _isna(val): return Severity.NA
+    if val > 5.0: return Severity.STRONG
+    if val > 3.0: return Severity.OK
+    if val > 1.5: return Severity.WATCH
+    if val > 0.75: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_burn_pct(val):
+    if _isna(val): return Severity.NA
+    if val > 0.15: return Severity.CRITICAL
+    if val > 0.08: return Severity.WARNING
+    if val > 0.04: return Severity.WATCH
+    if val > 0.02: return Severity.OK
+    return Severity.STRONG
+
+def _s_wc(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.CRITICAL
+    if val < 1_000_000: return Severity.WARNING
+    if val < 10_000_000: return Severity.WATCH
+    return Severity.OK
+
+def _s_net_debt(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.STRONG  # Net cash
+    if val == 0: return Severity.OK
+    return Severity.WARNING
+
+def _s_total_debt(val):
+    if _isna(val): return Severity.NA
+    if val == 0: return Severity.STRONG
+    return Severity.WATCH
+
+# --- Growth severity ---
+
+def _s_revg(val):
+    if _isna(val): return Severity.NA
+    if val > 0.50: return Severity.STRONG
+    if val > 0.20: return Severity.OK
+    if val > 0.05: return Severity.WATCH
+    if val > -0.05: return Severity.WATCH
+    if val > -0.20: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_revcagr(val):
+    if _isna(val): return Severity.NA
+    if val > 0.25: return Severity.STRONG
+    if val > 0.10: return Severity.OK
+    if val > 0: return Severity.WATCH
+    return Severity.WARNING
+
+def _s_earng(val):
+    if _isna(val): return Severity.NA
+    if val > 0.50: return Severity.STRONG
+    if val > 0.15: return Severity.OK
+    if val > 0: return Severity.WATCH
+    if val > -0.20: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_bvg(val):
+    if _isna(val): return Severity.NA
+    if val > 0.15: return Severity.STRONG
+    if val > 0.05: return Severity.OK
+    if val > -0.03: return Severity.WATCH
+    if val > -0.15: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_fcfg(val):
+    if _isna(val): return Severity.NA
+    if val > 0.30: return Severity.STRONG
+    if val > 0.10: return Severity.OK
+    if val > -0.10: return Severity.WATCH
+    return Severity.WARNING
+
+def _s_dil(val):
+    if _isna(val): return Severity.NA
+    if val < -0.01: return Severity.STRONG
+    if val < 0.02: return Severity.OK
+    if val < 0.05: return Severity.WATCH
+    if val < 0.10: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_dil3y(val):
+    if _isna(val): return Severity.NA
+    if val < 0: return Severity.STRONG
+    if val < 0.03: return Severity.OK
+    if val < 0.08: return Severity.WATCH
+    if val < 0.15: return Severity.WARNING
+    return Severity.CRITICAL
+
+# --- Share structure severity ---
+
+def _s_shares_out(val):
+    if _isna(val): return Severity.NA
+    if val > 1_000_000_000: return Severity.CRITICAL
+    if val > 500_000_000: return Severity.WARNING
+    if val > 200_000_000: return Severity.WATCH
+    if val > 50_000_000: return Severity.OK
+    return Severity.STRONG
+
+def _s_fd_shares(val):
+    if _isna(val): return Severity.NA
+    if val > 1_500_000_000: return Severity.CRITICAL
+    if val > 500_000_000: return Severity.WARNING
+    if val > 200_000_000: return Severity.WATCH
+    return Severity.OK
+
+def _s_insider(val):
+    if _isna(val): return Severity.NA
+    if val > 0.30: return Severity.STRONG
+    if val > 0.15: return Severity.OK
+    if val > 0.05: return Severity.WATCH
+    if val > 0.01: return Severity.WARNING
+    return Severity.CRITICAL
+
+def _s_inst(val):
+    if _isna(val): return Severity.NA
+    if val > 0.60: return Severity.STRONG
+    if val > 0.30: return Severity.OK
+    if val > 0.10: return Severity.WATCH
+    return Severity.NA
+
+def _s_float(val, total):
+    if _isna(val): return Severity.NA
+    if not _isna(total) and total > 0:
+        pct = val / total
+        if pct < 0.40: return Severity.STRONG
+        if pct < 0.70: return Severity.OK
+        return Severity.WATCH
+    return Severity.NA
+
+
+# ---------------------------------------------------------------------------
 # Public entry points
 # ---------------------------------------------------------------------------
 
@@ -914,7 +1300,9 @@ def _display_header(report):
         f"[{tc}]{p.tier.value}[/]  |  [{sc}]{p.stage.value}[/]\n"
         f"[cyan]Commodity:[/] {p.primary_commodity.value}  |  "
         f"[cyan]Jurisdiction:[/] {p.jurisdiction_tier.value}\n"
-        f"[dim]* = critical metric for this stage/tier  |  dimmed = less relevant[/]",
+        f"[dim]* = critical  |  ! = important  |  dimmed = informational[/]\n"
+        f"[bold red]***CRITICAL***[/] [bold #ff8800]*WARNING*[/] [bold yellow][WATCH][/] "
+        f"[bold green][OK][/] [dim][STRONG][/]",
         border_style=tc,
         title=f"[{tc}]{p.tier.value}[/] [{sc}]{p.stage.value}[/]",
     ))
@@ -972,6 +1360,17 @@ def _display_profile(report):
         pass
 
 
+def _make_metric_table(title, border_style="yellow"):
+    """Create a standard metric table with Severity and Impact columns."""
+    t = Table(title=title, show_lines=True, border_style=border_style)
+    t.add_column("Metric", style="bold", min_width=22, no_wrap=True)
+    t.add_column("Value", justify="right", min_width=14, no_wrap=True)
+    t.add_column("Assessment", ratio=1, overflow="fold")
+    t.add_column("Severity", justify="center", min_width=14, no_wrap=True)
+    t.add_column("Impact", justify="center", min_width=14, no_wrap=True)
+    return t
+
+
 def _display_valuation(report):
     """Valuation metrics — all rows use get_relevance with tier AND stage."""
     v = report.valuation
@@ -980,35 +1379,32 @@ def _display_valuation(report):
     tier, stage = report.profile.tier, report.profile.stage
     rel = lambda key: get_relevance(key, tier, "valuation", stage)
 
-    t = Table(title="Valuation Metrics", show_lines=True, border_style="yellow")
-    t.add_column("Metric", style="bold", min_width=22, no_wrap=True)
-    t.add_column("Value", justify="right", min_width=14, no_wrap=True)
-    t.add_column("Assessment", ratio=1, overflow="fold")
+    t = _make_metric_table("Valuation Metrics", "yellow")
 
     _add_metric_row(t, "P/E (Trailing)", fmt_num(v.pe_trailing),
-                    _a_pe(v.pe_trailing), rel("pe_trailing"))
+                    _a_pe(v.pe_trailing), rel("pe_trailing"), severity=_s_pe(v.pe_trailing))
     _add_metric_row(t, "P/B Ratio", fmt_num(v.pb_ratio),
-                    _a_pb(v.pb_ratio), rel("pb_ratio"))
+                    _a_pb(v.pb_ratio), rel("pb_ratio"), severity=_s_pb(v.pb_ratio))
     _add_metric_row(t, "P/S Ratio", fmt_num(v.ps_ratio),
-                    _a_ps(v.ps_ratio), rel("ps_ratio"))
+                    _a_ps(v.ps_ratio), rel("ps_ratio"), severity=_s_ps(v.ps_ratio))
     _add_metric_row(t, "P/FCF", fmt_num(v.p_fcf),
-                    _a_pfcf(v.p_fcf), rel("p_fcf"))
+                    _a_pfcf(v.p_fcf), rel("p_fcf"), severity=_s_pfcf(v.p_fcf))
     _add_metric_row(t, "EV/EBITDA", fmt_num(v.ev_ebitda),
-                    _a_ev(v.ev_ebitda), rel("ev_ebitda"))
+                    _a_ev(v.ev_ebitda), rel("ev_ebitda"), severity=_s_ev(v.ev_ebitda))
     _add_metric_row(t, "EV/Revenue", fmt_num(v.ev_revenue),
-                    _a_evrev(v.ev_revenue), rel("ev_revenue"))
+                    _a_evrev(v.ev_revenue), rel("ev_revenue"), severity=_s_evrev(v.ev_revenue))
     _add_metric_row(t, "PEG Ratio", fmt_num(v.peg_ratio),
-                    _a_peg(v.peg_ratio), rel("peg_ratio"))
+                    _a_peg(v.peg_ratio), rel("peg_ratio"), severity=_s_peg(v.peg_ratio))
     _add_metric_row(t, "Earnings Yield", fmt_pct(v.earnings_yield),
-                    _a_ey(v.earnings_yield), rel("earnings_yield"))
+                    _a_ey(v.earnings_yield), rel("earnings_yield"), severity=_s_ey(v.earnings_yield))
     _add_metric_row(t, "Dividend Yield", fmt_pct(v.dividend_yield),
-                    _a_divy(v.dividend_yield), rel("dividend_yield"))
+                    _a_divy(v.dividend_yield), rel("dividend_yield"), severity=_s_divy(v.dividend_yield))
     _add_metric_row(t, "P/Tangible Book", fmt_num(v.price_to_tangible_book),
-                    _a_ptb(v.price_to_tangible_book), rel("price_to_tangible_book"))
+                    _a_ptb(v.price_to_tangible_book), rel("price_to_tangible_book"), severity=_s_ptb(v.price_to_tangible_book))
     _add_metric_row(t, "P/NCAV (Net-Net)", fmt_num(v.price_to_ncav),
-                    _a_pncav(v.price_to_ncav), rel("price_to_ncav"))
+                    _a_pncav(v.price_to_ncav), rel("price_to_ncav"), severity=_s_pncav(v.price_to_ncav))
     _add_metric_row(t, "Cash/Market Cap", fmt_pct(v.cash_to_market_cap),
-                    _a_ctm(v.cash_to_market_cap), rel("cash_to_market_cap"))
+                    _a_ctm(v.cash_to_market_cap), rel("cash_to_market_cap"), severity=_s_ctm(v.cash_to_market_cap))
     console.print(t)
 
 
@@ -1023,10 +1419,7 @@ def _display_profitability(report):
     _keys = ["roe", "roa", "roic", "gross_margin", "operating_margin", "net_margin", "fcf_margin", "ebitda_margin"]
     all_irrelevant = all(rel(k) == Relevance.IRRELEVANT for k in _keys)
 
-    t = Table(title="Profitability Metrics", show_lines=True, border_style="green")
-    t.add_column("Metric", style="bold", min_width=22, no_wrap=True)
-    t.add_column("Value", justify="right", min_width=14, no_wrap=True)
-    t.add_column("Assessment", ratio=1, overflow="fold")
+    t = _make_metric_table("Profitability Metrics", "green")
 
     if all_irrelevant:
         stage_name = report.profile.stage.value if hasattr(report.profile.stage, "value") else str(report.profile.stage)
@@ -1035,24 +1428,25 @@ def _display_profitability(report):
             "[dim]--[/]",
             f"[dim]Profitability metrics are not applicable for {stage_name} stage companies. "
             f"Pre-revenue miners have no meaningful margins or returns on capital to evaluate.[/]",
+            "", "",
         )
     else:
         _add_metric_row(t, "ROE", fmt_pct(p.roe),
-                        _a_roe(p.roe), rel("roe"))
+                        _a_roe(p.roe), rel("roe"), severity=_s_roe(p.roe))
         _add_metric_row(t, "ROA", fmt_pct(p.roa),
-                        _a_roa(p.roa), rel("roa"))
+                        _a_roa(p.roa), rel("roa"), severity=_s_roa(p.roa))
         _add_metric_row(t, "ROIC", fmt_pct(p.roic),
-                        _a_roic(p.roic), rel("roic"))
+                        _a_roic(p.roic), rel("roic"), severity=_s_roic(p.roic))
         _add_metric_row(t, "Gross Margin", fmt_pct(p.gross_margin),
-                        _a_gm(p.gross_margin), rel("gross_margin"))
+                        _a_gm(p.gross_margin), rel("gross_margin"), severity=_s_gm(p.gross_margin))
         _add_metric_row(t, "Operating Margin", fmt_pct(p.operating_margin),
-                        _a_om(p.operating_margin), rel("operating_margin"))
+                        _a_om(p.operating_margin), rel("operating_margin"), severity=_s_om(p.operating_margin))
         _add_metric_row(t, "Net Margin", fmt_pct(p.net_margin),
-                        _a_nm(p.net_margin), rel("net_margin"))
+                        _a_nm(p.net_margin), rel("net_margin"), severity=_s_nm(p.net_margin))
         _add_metric_row(t, "FCF Margin", fmt_pct(p.fcf_margin),
-                        _a_fcfm(p.fcf_margin), rel("fcf_margin"))
+                        _a_fcfm(p.fcf_margin), rel("fcf_margin"), severity=_s_fcfm(p.fcf_margin))
         _add_metric_row(t, "EBITDA Margin", fmt_pct(p.ebitda_margin),
-                        _a_ebitdam(p.ebitda_margin), rel("ebitda_margin"))
+                        _a_ebitdam(p.ebitda_margin), rel("ebitda_margin"), severity=_s_ebitdam(p.ebitda_margin))
     console.print(t)
 
 
@@ -1065,28 +1459,26 @@ def _display_solvency(report):
     rel = lambda key: get_relevance(key, tier, "solvency", stage)
 
     title = "Survival & Financial Health" if tier in (CompanyTier.MICRO, CompanyTier.NANO) else "Solvency & Financial Health"
-    t = Table(title=title, show_lines=True, border_style="red")
-    t.add_column("Metric", style="bold", min_width=22, no_wrap=True)
-    t.add_column("Value", justify="right", min_width=14, no_wrap=True)
-    t.add_column("Assessment", ratio=1, overflow="fold")
+    t = _make_metric_table(title, "red")
 
     _add_metric_row(t, "Debt/Equity", fmt_num(s.debt_to_equity),
-                    _a_de(s.debt_to_equity), rel("debt_to_equity"))
+                    _a_de(s.debt_to_equity), rel("debt_to_equity"), severity=_s_de(s.debt_to_equity))
     _add_metric_row(t, "Current Ratio", fmt_num(s.current_ratio),
-                    _a_cr(s.current_ratio), rel("current_ratio"))
+                    _a_cr(s.current_ratio), rel("current_ratio"), severity=_s_cr(s.current_ratio))
     _add_metric_row(t, "Quick Ratio", fmt_num(s.quick_ratio),
-                    _a_qr(s.quick_ratio), rel("quick_ratio"))
+                    _a_qr(s.quick_ratio), rel("quick_ratio"), severity=_s_qr(s.quick_ratio))
     _add_metric_row(t, "Interest Coverage", fmt_num(s.interest_coverage, 1),
-                    _a_ic(s.interest_coverage), rel("interest_coverage"))
+                    _a_ic(s.interest_coverage), rel("interest_coverage"), severity=_s_ic(s.interest_coverage))
     _add_metric_row(t, "Cash Burn Rate (/yr)", fmt_money(s.cash_burn_rate),
-                    _a_burn(s.cash_burn_rate), rel("cash_burn_rate"))
+                    _a_burn(s.cash_burn_rate), rel("cash_burn_rate"), severity=_s_burn(s.cash_burn_rate))
     _add_metric_row(t, "Cash Runway",
                     f"{s.cash_runway_years:.1f} years" if s.cash_runway_years else "[dim]N/A[/]",
-                    _a_runway(s.cash_runway_years), rel("cash_runway_years"))
+                    _a_runway(s.cash_runway_years), rel("cash_runway_years"), severity=_s_runway(s.cash_runway_years))
     _add_metric_row(t, "Burn % of Mkt Cap", fmt_pct(s.burn_as_pct_of_market_cap),
-                    _a_burn_pct(s.burn_as_pct_of_market_cap), rel("burn_as_pct_of_market_cap"))
+                    _a_burn_pct(s.burn_as_pct_of_market_cap), rel("burn_as_pct_of_market_cap"),
+                    severity=_s_burn_pct(s.burn_as_pct_of_market_cap))
     _add_metric_row(t, "Working Capital", fmt_money(s.working_capital),
-                    _a_wc(s.working_capital), rel("working_capital"))
+                    _a_wc(s.working_capital), rel("working_capital"), severity=_s_wc(s.working_capital))
     _add_metric_row(t, "Cash Per Share",
                     f"${s.cash_per_share:.2f}" if s.cash_per_share else "[dim]N/A[/]",
                     _a_cps(s.cash_per_share), rel("cash_per_share"))
@@ -1095,13 +1487,31 @@ def _display_solvency(report):
                     _a_ncavps(s.ncav_per_share), rel("ncav_per_share"))
     _add_metric_row(t, "Total Cash", fmt_money(s.total_cash),
                     "[cyan]Cash on hand[/]" if not _isna(s.total_cash) else "[dim]No data[/]",
-                    rel("total_cash") if hasattr(s, 'total_cash') else Relevance.RELEVANT)
+                    get_relevance("total_cash", tier, "solvency", stage),
+                    severity=_s_total_debt(s.total_cash) if not _isna(s.total_cash) else Severity.NA)
     _add_metric_row(t, "Total Debt", fmt_money(s.total_debt),
                     _a_debt_total(s.total_debt),
-                    rel("total_debt") if hasattr(s, 'total_debt') else Relevance.RELEVANT)
+                    get_relevance("total_debt", tier, "solvency", stage),
+                    severity=_s_total_debt(s.total_debt))
     _add_metric_row(t, "Net Debt", fmt_money(s.net_debt),
                     _a_net_debt(s.net_debt),
-                    rel("net_debt") if hasattr(s, 'net_debt') else Relevance.RELEVANT)
+                    get_relevance("net_debt", tier, "solvency", stage),
+                    severity=_s_net_debt(s.net_debt))
+    # Mining-specific solvency
+    if s.cash_coverage_months is not None:
+        sev = Severity.STRONG if s.cash_coverage_months > 36 else Severity.OK if s.cash_coverage_months > 18 else Severity.WATCH if s.cash_coverage_months > 9 else Severity.WARNING if s.cash_coverage_months > 3 else Severity.CRITICAL
+        _add_metric_row(t, "Cash Coverage", f"{s.cash_coverage_months:.0f} months",
+                        f"[{'green' if s.cash_coverage_months > 18 else 'yellow' if s.cash_coverage_months > 9 else 'red'}]"
+                        f"{'Comfortable' if s.cash_coverage_months > 18 else 'Monitor' if s.cash_coverage_months > 9 else 'Critical'}[/]",
+                        Relevance.IMPORTANT if stage in (CompanyStage.GRASSROOTS, CompanyStage.EXPLORER) else Relevance.RELEVANT,
+                        severity=sev)
+    if s.debt_service_coverage is not None:
+        sev = Severity.STRONG if s.debt_service_coverage > 6 else Severity.OK if s.debt_service_coverage > 3 else Severity.WATCH if s.debt_service_coverage > 1.5 else Severity.CRITICAL
+        _add_metric_row(t, "Debt Service Coverage", fmt_num(s.debt_service_coverage, 1),
+                        f"[{'green' if s.debt_service_coverage > 3 else 'yellow' if s.debt_service_coverage > 1.5 else 'red'}]"
+                        f"{'Strong' if s.debt_service_coverage > 3 else 'Adequate' if s.debt_service_coverage > 1.5 else 'Weak'}[/]",
+                        Relevance.IMPORTANT if stage == CompanyStage.PRODUCER else Relevance.RELEVANT,
+                        severity=sev)
     console.print(t)
 
 
@@ -1131,25 +1541,41 @@ def _display_growth(report):
     tier, stage = report.profile.tier, report.profile.stage
     rel = lambda key: get_relevance(key, tier, "growth", stage)
 
-    t = Table(title="Growth & Dilution Metrics", show_lines=True, border_style="magenta")
-    t.add_column("Metric", style="bold", min_width=22, no_wrap=True)
-    t.add_column("Value", justify="right", min_width=14, no_wrap=True)
-    t.add_column("Assessment", ratio=1, overflow="fold")
+    t = _make_metric_table("Growth & Dilution Metrics", "magenta")
 
     _add_metric_row(t, "Revenue Growth (YoY)", fmt_pct(g.revenue_growth_yoy),
-                    _a_revg(g.revenue_growth_yoy), rel("revenue_growth_yoy"))
+                    _a_revg(g.revenue_growth_yoy), rel("revenue_growth_yoy"), severity=_s_revg(g.revenue_growth_yoy))
     _add_metric_row(t, "Revenue CAGR (3Y)", fmt_pct(g.revenue_cagr_3y),
-                    _a_revcagr(g.revenue_cagr_3y), rel("revenue_cagr_3y"))
+                    _a_revcagr(g.revenue_cagr_3y), rel("revenue_cagr_3y"), severity=_s_revcagr(g.revenue_cagr_3y))
     _add_metric_row(t, "Earnings Growth (YoY)", fmt_pct(g.earnings_growth_yoy),
-                    _a_earng(g.earnings_growth_yoy), rel("earnings_growth_yoy"))
+                    _a_earng(g.earnings_growth_yoy), rel("earnings_growth_yoy"), severity=_s_earng(g.earnings_growth_yoy))
     _add_metric_row(t, "Book Value Growth (YoY)", fmt_pct(g.book_value_growth_yoy),
-                    _a_bvg(g.book_value_growth_yoy), rel("book_value_growth_yoy"))
+                    _a_bvg(g.book_value_growth_yoy), rel("book_value_growth_yoy"), severity=_s_bvg(g.book_value_growth_yoy))
     _add_metric_row(t, "FCF Growth (YoY)", fmt_pct(g.fcf_growth_yoy),
-                    _a_fcfg(g.fcf_growth_yoy), rel("fcf_growth_yoy"))
+                    _a_fcfg(g.fcf_growth_yoy), rel("fcf_growth_yoy"), severity=_s_fcfg(g.fcf_growth_yoy))
     _add_metric_row(t, "Share Dilution (YoY)", fmt_pct(g.shares_growth_yoy),
-                    _a_dil(g.shares_growth_yoy), rel("shares_growth_yoy"))
+                    _a_dil(g.shares_growth_yoy), rel("shares_growth_yoy"), severity=_s_dil(g.shares_growth_yoy))
     _add_metric_row(t, "Dilution CAGR (3Y)", fmt_pct(g.shares_growth_3y_cagr),
-                    _a_dil3y(g.shares_growth_3y_cagr), rel("shares_growth_3y_cagr"))
+                    _a_dil3y(g.shares_growth_3y_cagr), rel("shares_growth_3y_cagr"), severity=_s_dil3y(g.shares_growth_3y_cagr))
+    # Mining-specific growth metrics
+    if g.capex_intensity is not None:
+        sev = Severity.WATCH if g.capex_intensity > 0.5 else Severity.OK if g.capex_intensity > 0.2 else Severity.STRONG
+        _add_metric_row(t, "Capex Intensity", fmt_pct(g.capex_intensity),
+                        f"[{'yellow' if g.capex_intensity > 0.5 else 'green'}]"
+                        f"{'Heavy capex cycle' if g.capex_intensity > 0.5 else 'Moderate' if g.capex_intensity > 0.2 else 'Low capex'}[/]",
+                        Relevance.IMPORTANT if stage in (CompanyStage.DEVELOPER, CompanyStage.PRODUCER) else Relevance.RELEVANT,
+                        severity=sev)
+    if g.exploration_ratio is not None:
+        _add_metric_row(t, "Exploration/Assets", fmt_pct(g.exploration_ratio),
+                        "[cyan]Exploration spend relative to asset base[/]",
+                        Relevance.IMPORTANT if stage in (CompanyStage.EXPLORER, CompanyStage.GRASSROOTS) else Relevance.CONTEXTUAL)
+    if g.operating_leverage is not None and abs(g.operating_leverage) < 100:
+        sev = Severity.STRONG if g.operating_leverage > 2 else Severity.OK if g.operating_leverage > 1 else Severity.WATCH if g.operating_leverage > 0 else Severity.WARNING
+        _add_metric_row(t, "Operating Leverage", fmt_num(g.operating_leverage, 1),
+                        f"[{'green' if g.operating_leverage > 1 else '#ff8800'}]"
+                        f"{'High leverage — amplified earnings' if g.operating_leverage > 2 else 'Moderate' if g.operating_leverage > 1 else 'Low leverage'}[/]",
+                        Relevance.IMPORTANT if stage == CompanyStage.PRODUCER else Relevance.CONTEXTUAL,
+                        severity=sev)
     console.print(t)
 
 
@@ -1161,24 +1587,26 @@ def _display_share_structure(report):
     tier, stage = report.profile.tier, report.profile.stage
     rel = lambda key: get_relevance(key, tier, "share_structure", stage)
 
-    t = Table(title="Share Structure Analysis", show_lines=True, border_style="bold yellow")
-    t.add_column("Indicator", style="bold", min_width=22, no_wrap=True)
-    t.add_column("Value", min_width=14)
-    t.add_column("Assessment", ratio=1, overflow="fold")
+    t = _make_metric_table("Share Structure Analysis", "bold yellow")
 
     _add_metric_row(t, "Shares Outstanding", fmt_shares(ss.shares_outstanding),
-                    _a_shares_out(ss.shares_outstanding), rel("shares_outstanding"))
+                    _a_shares_out(ss.shares_outstanding), rel("shares_outstanding"),
+                    severity=_s_shares_out(ss.shares_outstanding))
     _add_metric_row(t, "Fully Diluted", fmt_shares(ss.fully_diluted_shares),
-                    _a_fd_shares(ss.fully_diluted_shares), rel("fully_diluted_shares"))
+                    _a_fd_shares(ss.fully_diluted_shares), rel("fully_diluted_shares"),
+                    severity=_s_fd_shares(ss.fully_diluted_shares))
     _add_metric_row(t, "Float", fmt_shares(ss.float_shares),
                     _a_float(ss.float_shares, ss.shares_outstanding),
-                    Relevance.RELEVANT)
+                    Relevance.RELEVANT,
+                    severity=_s_float(ss.float_shares, ss.shares_outstanding))
     _add_metric_row(t, "Insider Ownership",
                     fmt_pct(ss.insider_ownership_pct) if ss.insider_ownership_pct else "[dim]N/A[/]",
-                    _a_insider(ss.insider_ownership_pct), rel("insider_ownership_pct"))
+                    _a_insider(ss.insider_ownership_pct), rel("insider_ownership_pct"),
+                    severity=_s_insider(ss.insider_ownership_pct))
     _add_metric_row(t, "Institutional Ownership",
                     fmt_pct(ss.institutional_ownership_pct) if ss.institutional_ownership_pct else "[dim]N/A[/]",
-                    _a_inst(ss.institutional_ownership_pct), rel("institutional_ownership_pct"))
+                    _a_inst(ss.institutional_ownership_pct), rel("institutional_ownership_pct"),
+                    severity=_s_inst(ss.institutional_ownership_pct))
     _add_metric_row(t, "Assessment", ss.share_structure_assessment or "[dim]N/A[/]",
                     _a_ss_assessment(ss.share_structure_assessment), rel("share_structure_assessment"))
     console.print(t)
@@ -1208,36 +1636,23 @@ def _display_mining_quality(report):
     t = Table(title="Mining Quality Assessment", show_lines=True, border_style="bold yellow")
     t.add_column("Indicator", style="bold", min_width=22, no_wrap=True)
     t.add_column("Assessment", ratio=1, overflow="fold")
+    t.add_column("Impact", justify="center", min_width=14, no_wrap=True)
 
     # Quality score — special formatting with score color
     r_qs = rel("quality_score")
     if r_qs != Relevance.IRRELEVANT:
         style, prefix = _STYLE[r_qs]
         qs_label = f"{prefix}[{style}]Quality Score[/]" if style else f"{prefix}Quality Score"
-        t.add_row(qs_label, fmt_score(m.quality_score))
+        t.add_row(qs_label, fmt_score(m.quality_score), _impact_text(r_qs))
 
     # Competitive position — always RELEVANT (no stage override in relevance.py)
     _add_quality_row(t, "Competitive Position", m.competitive_position, Relevance.RELEVANT)
-
-    # Insider alignment
     _add_quality_row(t, "Insider Alignment", m.insider_alignment, rel("insider_alignment"))
-
-    # Financial position
     _add_quality_row(t, "Financial Position", m.financial_position, rel("financial_position"))
-
-    # Dilution risk
     _add_quality_row(t, "Dilution Risk", m.dilution_risk, rel("dilution_risk"))
-
-    # Asset backing
     _add_quality_row(t, "Asset Backing", m.asset_backing, rel("asset_backing"))
-
-    # Revenue predictability
     _add_quality_row(t, "Revenue Status", m.revenue_predictability, rel("revenue_predictability"))
-
-    # Share structure assessment — always shown
     _add_quality_row(t, "Share Structure", m.share_structure_assessment, Relevance.RELEVANT)
-
-    # Management quality — always shown
     _add_quality_row(t, "Management Quality", m.management_quality, Relevance.RELEVANT)
 
     console.print(t)
@@ -1252,7 +1667,7 @@ def _add_quality_row(table, label, value, relevance):
     display_val = value or "[dim]N/A[/]"
     if style and value:
         display_val = f"[{style}]{value}[/]"
-    table.add_row(sl, display_val)
+    table.add_row(sl, display_val, _impact_text(relevance))
 
 
 def _display_intrinsic_value(report):

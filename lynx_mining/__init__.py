@@ -38,6 +38,16 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE."""
 
 
+def _load_logo_ascii() -> str:
+    """Load the ASCII logo from img/logo_ascii.txt."""
+    from pathlib import Path
+    logo_path = Path(__file__).resolve().parent.parent / "img" / "logo_ascii.txt"
+    try:
+        return logo_path.read_text()
+    except FileNotFoundError:
+        return ""
+
+
 def get_about_text() -> dict:
     """Return structured about information."""
     return {
@@ -49,6 +59,7 @@ def get_about_text() -> dict:
         "year": __year__,
         "license": __license__,
         "license_text": LICENSE_TEXT,
+        "logo_ascii": _load_logo_ascii(),
         "description": (
             "Fundamental analysis specialized for junior mining, uranium, "
             "copper, gold, and basic materials companies. Evaluates companies "

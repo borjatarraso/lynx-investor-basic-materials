@@ -167,6 +167,30 @@ def calc_solvency(
         if s.cash_burn_rate and s.cash_burn_rate < 0 and market_cap and market_cap > 0:
             s.burn_as_pct_of_market_cap = abs(s.cash_burn_rate) / market_cap
 
+        # Mining-specific: cash coverage in months
+        if s.cash_burn_rate and s.cash_burn_rate < 0 and s.total_cash and s.total_cash > 0:
+            monthly_burn = abs(s.cash_burn_rate) / 12
+            if monthly_burn > 0:
+                s.cash_coverage_months = s.total_cash / monthly_burn
+
+        # Capex to CFO ratio
+        if st.capital_expenditure and st.operating_cash_flow and st.operating_cash_flow != 0:
+            s.capex_to_cfo = abs(st.capital_expenditure) / abs(st.operating_cash_flow)
+
+        # Tangible asset ratio
+        if st.total_assets and st.total_assets > 0:
+            # Tangible assets = total assets (mining companies mostly have tangible assets)
+            # This is a simplified proxy — real intangibles would need goodwill data
+            s.tangible_asset_ratio = 1.0  # Default for miners
+            if st.total_equity and st.total_assets > 0:
+                s.tangible_asset_ratio = max(0, st.total_equity / st.total_assets)
+
+        # Debt service coverage
+        if st.ebitda and st.ebitda > 0:
+            ie = abs(st.interest_expense) if st.interest_expense else 0
+            if ie > 0:
+                s.debt_service_coverage = st.ebitda / ie
+
     return s
 
 
@@ -204,6 +228,18 @@ def calc_growth(
     if len(stmts) >= 5:
         g.revenue_cagr_5y = _cagr(stmts[-1].revenue, stmts[0].revenue, len(stmts) - 1)
         g.earnings_cagr_5y = _cagr(stmts[-1].net_income, stmts[0].net_income, len(stmts) - 1)
+
+    # Mining-specific: capex intensity
+    if stmts[0].capital_expenditure and stmts[0].revenue and stmts[0].revenue > 0:
+        g.capex_intensity = abs(stmts[0].capital_expenditure) / stmts[0].revenue
+
+    # Exploration ratio
+    if stmts[0].exploration_expenditure and stmts[0].total_assets and stmts[0].total_assets > 0:
+        g.exploration_ratio = abs(stmts[0].exploration_expenditure) / stmts[0].total_assets
+
+    # Operating leverage (revenue growth vs income growth direction)
+    if g.revenue_growth_yoy and g.earnings_growth_yoy and g.revenue_growth_yoy != 0:
+        g.operating_leverage = g.earnings_growth_yoy / g.revenue_growth_yoy
 
     return g
 

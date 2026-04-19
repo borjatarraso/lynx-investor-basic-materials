@@ -30,6 +30,7 @@ from lynx_mining.models import (
     CompanyStage,
     CompanyTier,
     Relevance,
+    Severity,
 )
 
 
@@ -43,6 +44,8 @@ class AboutModal(ModalScreen):
     def compose(self) -> ComposeResult:
         from lynx_mining import get_about_text
         about = get_about_text()
+        logo = about.get('logo_ascii', '')
+        logo_block = f"[bold green]{logo}[/]\n" if logo else ""
         with Vertical(id="about-dialog"):
             yield Label(
                 f"[bold blue]{about['name']}[/]",
@@ -50,6 +53,7 @@ class AboutModal(ModalScreen):
             )
             yield VerticalScroll(
                 Static(
+                    f"{logo_block}"
                     f"[dim]{about['suite']}[/]\n"
                     f"[dim]Version {about['version']} ({about['year']})[/]\n\n"
                     f"[bold]Developed by:[/] {about['author']}\n"
@@ -1053,40 +1057,55 @@ def _build_profile_table(r: AnalysisReport) -> DataTable:
     return t
 
 
-def _build_valuation(r: AnalysisReport) -> DataTable:
-    v = r.valuation
-    stage = _get_stage(r)
-    tier = _get_tier(r)
+def _tui_metric_table() -> DataTable:
+    """Create a DataTable with standard metric columns including Severity and Impact."""
     t = DataTable(zebra_stripes=True, cursor_type="row")
     t.add_column("Metric", width=26)
     t.add_column("Value", width=16)
     t.add_column("Assessment", width=None)
+    t.add_column("Severity", width=14)
+    t.add_column("Impact", width=12)
     t.add_column("?", width=3)
+    return t
+
+
+def _build_valuation(r: AnalysisReport) -> DataTable:
+    from lynx_mining.display import (
+        _s_pe, _s_pb, _s_ps, _s_pfcf, _s_ev, _s_evrev, _s_peg,
+        _s_ey, _s_divy, _s_ptb, _s_pncav, _s_ctm,
+    )
+    v = r.valuation
+    stage = _get_stage(r)
+    tier = _get_tier(r)
+    t = _tui_metric_table()
     if v is None:
         return t
 
     def rel(key: str) -> Relevance:
         return _get_rel(key, tier, "valuation", stage)
 
-    _rm_rel(t, "P/E (Trailing)", _num(v.pe_trailing), _ape(v.pe_trailing), "pe_trailing", rel("pe_trailing"))
-    _rm_rel(t, "P/E (Forward)", _num(v.pe_forward), _ape(v.pe_forward), "pe_forward", rel("pe_forward"))
-    _rm_rel(t, "P/B Ratio", _num(v.pb_ratio), _thr(v.pb_ratio, [(1, "Below Book"), (1.5, "Cheap"), (3, "Fair")], "Premium"), "pb_ratio", rel("pb_ratio"))
-    _rm_rel(t, "P/S Ratio", _num(v.ps_ratio), "", "ps_ratio", rel("ps_ratio"))
-    _rm_rel(t, "P/FCF", _num(v.p_fcf), _thr(v.p_fcf, [(10, "Cheap"), (20, "Fair")], "Expensive"), "p_fcf", rel("p_fcf"))
-    _rm_rel(t, "EV/EBITDA", _num(v.ev_ebitda), _thr(v.ev_ebitda, [(8, "Cheap"), (12, "Fair"), (18, "Expensive")], "Very Expensive"), "ev_ebitda", rel("ev_ebitda"))
-    _rm_rel(t, "EV/Revenue", _num(v.ev_revenue), _thr(v.ev_revenue, [(1, "Very cheap"), (3, "Cheap"), (5, "Fair"), (8, "Expensive")], "Very expensive"), "ev_revenue", rel("ev_revenue"))
-    _rm_rel(t, "PEG Ratio", _num(v.peg_ratio), _thr(v.peg_ratio, [(1, "Undervalued"), (2, "Fair")], "Overvalued"), "peg_ratio", rel("peg_ratio"))
-    _rm_rel(t, "Earnings Yield", _pct(v.earnings_yield), _yield_assess(v.earnings_yield), "earnings_yield", rel("earnings_yield"))
-    _rm_rel(t, "Dividend Yield", _pct(v.dividend_yield), _div_assess(v.dividend_yield), "dividend_yield", rel("dividend_yield"))
-    _rm_rel(t, "P/Tangible Book", _num(v.price_to_tangible_book), _thr(v.price_to_tangible_book, [(0.67, "Deep Value"), (1, "Below Book"), (1.5, "Near Book")], "Premium"), "price_to_tangible_book", rel("price_to_tangible_book"))
-    _rm_rel(t, "P/NCAV (Net-Net)", _num(v.price_to_ncav), _thr(v.price_to_ncav, [(0.67, "Classic Net-Net"), (1, "Below NCAV"), (1.5, "Near NCAV")], "Above NCAV"), "price_to_ncav", rel("price_to_ncav"))
-    _rm_rel(t, "Cash/Market Cap", _pct(v.cash_to_market_cap), _thr(v.cash_to_market_cap, [(0.1, "Low"), (0.3, "Moderate"), (0.5, "Strong")], "Very strong"), "cash_to_market_cap", rel("cash_to_market_cap"))
+    _rm_rel(t, "P/E (Trailing)", _num(v.pe_trailing), _ape(v.pe_trailing), "pe_trailing", rel("pe_trailing"), _s_pe(v.pe_trailing))
+    _rm_rel(t, "P/E (Forward)", _num(v.pe_forward), _ape(v.pe_forward), "pe_forward", rel("pe_forward"), _s_pe(v.pe_forward))
+    _rm_rel(t, "P/B Ratio", _num(v.pb_ratio), _thr(v.pb_ratio, [(1, "Below Book"), (1.5, "Cheap"), (3, "Fair")], "Premium"), "pb_ratio", rel("pb_ratio"), _s_pb(v.pb_ratio))
+    _rm_rel(t, "P/S Ratio", _num(v.ps_ratio), "", "ps_ratio", rel("ps_ratio"), _s_ps(v.ps_ratio))
+    _rm_rel(t, "P/FCF", _num(v.p_fcf), _thr(v.p_fcf, [(10, "Cheap"), (20, "Fair")], "Expensive"), "p_fcf", rel("p_fcf"), _s_pfcf(v.p_fcf))
+    _rm_rel(t, "EV/EBITDA", _num(v.ev_ebitda), _thr(v.ev_ebitda, [(8, "Cheap"), (12, "Fair"), (18, "Expensive")], "Very Expensive"), "ev_ebitda", rel("ev_ebitda"), _s_ev(v.ev_ebitda))
+    _rm_rel(t, "EV/Revenue", _num(v.ev_revenue), _thr(v.ev_revenue, [(1, "Very cheap"), (3, "Cheap"), (5, "Fair"), (8, "Expensive")], "Very expensive"), "ev_revenue", rel("ev_revenue"), _s_evrev(v.ev_revenue))
+    _rm_rel(t, "PEG Ratio", _num(v.peg_ratio), _thr(v.peg_ratio, [(1, "Undervalued"), (2, "Fair")], "Overvalued"), "peg_ratio", rel("peg_ratio"), _s_peg(v.peg_ratio))
+    _rm_rel(t, "Earnings Yield", _pct(v.earnings_yield), _yield_assess(v.earnings_yield), "earnings_yield", rel("earnings_yield"), _s_ey(v.earnings_yield))
+    _rm_rel(t, "Dividend Yield", _pct(v.dividend_yield), _div_assess(v.dividend_yield), "dividend_yield", rel("dividend_yield"), _s_divy(v.dividend_yield))
+    _rm_rel(t, "P/Tangible Book", _num(v.price_to_tangible_book), _thr(v.price_to_tangible_book, [(0.67, "Deep Value"), (1, "Below Book"), (1.5, "Near Book")], "Premium"), "price_to_tangible_book", rel("price_to_tangible_book"), _s_ptb(v.price_to_tangible_book))
+    _rm_rel(t, "P/NCAV (Net-Net)", _num(v.price_to_ncav), _thr(v.price_to_ncav, [(0.67, "Classic Net-Net"), (1, "Below NCAV"), (1.5, "Near NCAV")], "Above NCAV"), "price_to_ncav", rel("price_to_ncav"), _s_pncav(v.price_to_ncav))
+    _rm_rel(t, "Cash/Market Cap", _pct(v.cash_to_market_cap), _thr(v.cash_to_market_cap, [(0.1, "Low"), (0.3, "Moderate"), (0.5, "Strong")], "Very strong"), "cash_to_market_cap", rel("cash_to_market_cap"), _s_ctm(v.cash_to_market_cap))
     _rm_rel(t, "Enterprise Value", _money(v.enterprise_value), "", "", Relevance.RELEVANT)
     _rm_rel(t, "Market Cap", _money(v.market_cap), "", "", Relevance.RELEVANT)
     return t
 
 
 def _build_profitability(r: AnalysisReport) -> DataTable | Static:
+    from lynx_mining.display import (
+        _s_roe, _s_roa, _s_roic, _s_gm, _s_om, _s_nm, _s_fcfm, _s_ebitdam,
+    )
     p = r.profitability
     stage = _get_stage(r)
     tier = _get_tier(r)
@@ -1102,81 +1121,76 @@ def _build_profitability(r: AnalysisReport) -> DataTable | Static:
             f"Pre-revenue miners have no meaningful margins or returns on capital to evaluate.[/]"
         )
 
-    t = DataTable(zebra_stripes=True, cursor_type="row")
-    t.add_column("Metric", width=26)
-    t.add_column("Value", width=16)
-    t.add_column("Assessment", width=None)
-    t.add_column("?", width=3)
+    t = _tui_metric_table()
 
-    _rm_rel(t, "ROE", _pct(p.roe), _thr(p.roe, [(0, "Negative"), (0.10, "Below Avg"), (0.15, "Good"), (0.20, "Excellent")], "Outstanding"), "roe", rel("roe"))
-    _rm_rel(t, "ROA", _pct(p.roa), _thr(p.roa, [(0, "Negative"), (0.05, "Low"), (0.10, "Good")], "Excellent"), "roa", rel("roa"))
-    _rm_rel(t, "ROIC", _pct(p.roic), _thr(p.roic, [(0, "Negative"), (0.07, "Below WACC"), (0.10, "Good"), (0.15, "Wide Moat")], "Exceptional"), "roic", rel("roic"))
-    _rm_rel(t, "Gross Margin", _pct(p.gross_margin), "", "gross_margin", rel("gross_margin"))
-    _rm_rel(t, "Operating Margin", _pct(p.operating_margin), _margin_assess(p.operating_margin, 0.25, 0.15, 0.05), "operating_margin", rel("operating_margin"))
-    _rm_rel(t, "Net Margin", _pct(p.net_margin), _margin_assess(p.net_margin, 0.20, 0.10, 0.05), "net_margin", rel("net_margin"))
-    _rm_rel(t, "FCF Margin", _pct(p.fcf_margin), _margin_assess(p.fcf_margin, 0.20, 0.10, 0.05), "fcf_margin", rel("fcf_margin"))
-    _rm_rel(t, "EBITDA Margin", _pct(p.ebitda_margin), _margin_assess(p.ebitda_margin, 0.30, 0.15, 0.05), "ebitda_margin", rel("ebitda_margin"))
+    _rm_rel(t, "ROE", _pct(p.roe), _thr(p.roe, [(0, "Negative"), (0.10, "Below Avg"), (0.15, "Good"), (0.20, "Excellent")], "Outstanding"), "roe", rel("roe"), _s_roe(p.roe))
+    _rm_rel(t, "ROA", _pct(p.roa), _thr(p.roa, [(0, "Negative"), (0.05, "Low"), (0.10, "Good")], "Excellent"), "roa", rel("roa"), _s_roa(p.roa))
+    _rm_rel(t, "ROIC", _pct(p.roic), _thr(p.roic, [(0, "Negative"), (0.07, "Below WACC"), (0.10, "Good"), (0.15, "Wide Moat")], "Exceptional"), "roic", rel("roic"), _s_roic(p.roic))
+    _rm_rel(t, "Gross Margin", _pct(p.gross_margin), "", "gross_margin", rel("gross_margin"), _s_gm(p.gross_margin))
+    _rm_rel(t, "Operating Margin", _pct(p.operating_margin), _margin_assess(p.operating_margin, 0.25, 0.15, 0.05), "operating_margin", rel("operating_margin"), _s_om(p.operating_margin))
+    _rm_rel(t, "Net Margin", _pct(p.net_margin), _margin_assess(p.net_margin, 0.20, 0.10, 0.05), "net_margin", rel("net_margin"), _s_nm(p.net_margin))
+    _rm_rel(t, "FCF Margin", _pct(p.fcf_margin), _margin_assess(p.fcf_margin, 0.20, 0.10, 0.05), "fcf_margin", rel("fcf_margin"), _s_fcfm(p.fcf_margin))
+    _rm_rel(t, "EBITDA Margin", _pct(p.ebitda_margin), _margin_assess(p.ebitda_margin, 0.30, 0.15, 0.05), "ebitda_margin", rel("ebitda_margin"), _s_ebitdam(p.ebitda_margin))
     return t
 
 
 def _build_solvency(r: AnalysisReport) -> DataTable:
+    from lynx_mining.display import (
+        _s_de, _s_cr, _s_qr, _s_ic, _s_burn, _s_runway, _s_burn_pct,
+        _s_wc, _s_total_debt, _s_net_debt,
+    )
     s = r.solvency
     stage = _get_stage(r)
     tier = _get_tier(r)
-    t = DataTable(zebra_stripes=True, cursor_type="row")
-    t.add_column("Metric", width=26)
-    t.add_column("Value", width=16)
-    t.add_column("Assessment", width=None)
-    t.add_column("?", width=3)
+    t = _tui_metric_table()
     if s is None:
         return t
 
     def rel(key: str) -> Relevance:
         return _get_rel(key, tier, "solvency", stage)
 
-    _rm_rel(t, "Debt/Equity", _num(s.debt_to_equity), _thr(s.debt_to_equity, [(0.3, "Very Conservative"), (0.5, "Conservative"), (1.0, "Moderate"), (2.0, "High")], "Very High"), "debt_to_equity", rel("debt_to_equity"))
+    _rm_rel(t, "Debt/Equity", _num(s.debt_to_equity), _thr(s.debt_to_equity, [(0.3, "Very Conservative"), (0.5, "Conservative"), (1.0, "Moderate"), (2.0, "High")], "Very High"), "debt_to_equity", rel("debt_to_equity"), _s_de(s.debt_to_equity))
     _rm_rel(t, "Debt/EBITDA", _num(s.debt_to_ebitda), _thr(s.debt_to_ebitda, [(1, "Very Low"), (2, "Manageable"), (3, "Moderate")], "Heavy"), "debt_to_ebitda", rel("debt_to_ebitda"))
-    _rm_rel(t, "Current Ratio", _num(s.current_ratio), _thr(s.current_ratio, [(1.0, "Liquidity Risk"), (1.5, "Adequate"), (2.0, "Good")], "Strong"), "current_ratio", rel("current_ratio"))
-    _rm_rel(t, "Quick Ratio", _num(s.quick_ratio), "", "quick_ratio", rel("quick_ratio"))
-    _rm_rel(t, "Interest Coverage", _num(s.interest_coverage, 1), _thr(s.interest_coverage, [(1, "Cannot cover"), (2, "Tight"), (4, "Adequate"), (8, "Strong")], "Very strong"), "interest_coverage", rel("interest_coverage"))
+    _rm_rel(t, "Current Ratio", _num(s.current_ratio), _thr(s.current_ratio, [(1.0, "Liquidity Risk"), (1.5, "Adequate"), (2.0, "Good")], "Strong"), "current_ratio", rel("current_ratio"), _s_cr(s.current_ratio))
+    _rm_rel(t, "Quick Ratio", _num(s.quick_ratio), "", "quick_ratio", rel("quick_ratio"), _s_qr(s.quick_ratio))
+    _rm_rel(t, "Interest Coverage", _num(s.interest_coverage, 1), _thr(s.interest_coverage, [(1, "Cannot cover"), (2, "Tight"), (4, "Adequate"), (8, "Strong")], "Very strong"), "interest_coverage", rel("interest_coverage"), _s_ic(s.interest_coverage))
     _rm_rel(t, "Altman Z-Score", _num(s.altman_z_score), _thr(s.altman_z_score, [(1.81, "Distress"), (2.99, "Grey Zone")], "Safe"), "altman_z_score", rel("altman_z_score"))
-    _rm_rel(t, "Cash Burn Rate (/yr)", _money(s.cash_burn_rate), _burn(s.cash_burn_rate), "cash_burn_rate", rel("cash_burn_rate"))
-    _rm_rel(t, "Cash Runway", f"{s.cash_runway_years:.1f} yrs" if s.cash_runway_years is not None else "N/A", "", "cash_runway_years", rel("cash_runway_years"))
-    _rm_rel(t, "Burn % of Market Cap", _pct(s.burn_as_pct_of_market_cap), _thr(s.burn_as_pct_of_market_cap, [(0.05, "Low"), (0.10, "Moderate"), (0.20, "Concerning")], "Critical"), "burn_as_pct_of_market_cap", rel("burn_as_pct_of_market_cap"))
-    _rm_rel(t, "Working Capital", _money(s.working_capital), "", "working_capital", rel("working_capital"))
+    _rm_rel(t, "Cash Burn Rate (/yr)", _money(s.cash_burn_rate), _burn(s.cash_burn_rate), "cash_burn_rate", rel("cash_burn_rate"), _s_burn(s.cash_burn_rate))
+    _rm_rel(t, "Cash Runway", f"{s.cash_runway_years:.1f} yrs" if s.cash_runway_years is not None else "N/A", "", "cash_runway_years", rel("cash_runway_years"), _s_runway(s.cash_runway_years))
+    _rm_rel(t, "Burn % of Market Cap", _pct(s.burn_as_pct_of_market_cap), _thr(s.burn_as_pct_of_market_cap, [(0.05, "Low"), (0.10, "Moderate"), (0.20, "Concerning")], "Critical"), "burn_as_pct_of_market_cap", rel("burn_as_pct_of_market_cap"), _s_burn_pct(s.burn_as_pct_of_market_cap))
+    _rm_rel(t, "Working Capital", _money(s.working_capital), "", "working_capital", rel("working_capital"), _s_wc(s.working_capital))
     _rm_rel(t, "Cash Per Share", f"${s.cash_per_share:.2f}" if s.cash_per_share is not None else "N/A", "", "cash_per_share", rel("cash_per_share"))
     _rm_rel(t, "NCAV Per Share", f"${s.ncav_per_share:.4f}" if s.ncav_per_share is not None else "N/A", "", "ncav_per_share", rel("ncav_per_share"))
-    _rm_rel(t, "Total Debt", _money(s.total_debt), "", "", Relevance.RELEVANT)
-    _rm_rel(t, "Total Cash", _money(s.total_cash), "", "", Relevance.RELEVANT)
-    _rm_rel(t, "Net Debt", _money(s.net_debt), "", "", Relevance.RELEVANT)
+    _rm_rel(t, "Total Debt", _money(s.total_debt), "", "", _get_rel("total_debt", tier, "solvency", stage), _s_total_debt(s.total_debt))
+    _rm_rel(t, "Total Cash", _money(s.total_cash), "", "", _get_rel("total_cash", tier, "solvency", stage))
+    _rm_rel(t, "Net Debt", _money(s.net_debt), "", "", _get_rel("net_debt", tier, "solvency", stage), _s_net_debt(s.net_debt))
     return t
 
 
 def _build_growth(r: AnalysisReport) -> DataTable:
+    from lynx_mining.display import (
+        _s_revg, _s_revcagr, _s_earng, _s_bvg, _s_fcfg, _s_dil, _s_dil3y,
+    )
     g = r.growth
     stage = _get_stage(r)
     tier = _get_tier(r)
-    t = DataTable(zebra_stripes=True, cursor_type="row")
-    t.add_column("Metric", width=26)
-    t.add_column("Value", width=16)
-    t.add_column("Assessment", width=None)
-    t.add_column("?", width=3)
+    t = _tui_metric_table()
     if g is None:
         return t
 
     def rel(key: str) -> Relevance:
         return _get_rel(key, tier, "growth", stage)
 
-    _rm_rel(t, "Revenue Growth (YoY)", _pct(g.revenue_growth_yoy), _growth_assess(g.revenue_growth_yoy), "revenue_growth_yoy", rel("revenue_growth_yoy"))
-    _rm_rel(t, "Revenue CAGR (3Y)", _pct(g.revenue_cagr_3y), _cagr_assess(g.revenue_cagr_3y), "revenue_cagr_3y", rel("revenue_cagr_3y"))
-    _rm_rel(t, "Revenue CAGR (5Y)", _pct(g.revenue_cagr_5y), _cagr_assess(g.revenue_cagr_5y), "revenue_cagr_5y", rel("revenue_cagr_5y"))
-    _rm_rel(t, "Earnings Growth (YoY)", _pct(g.earnings_growth_yoy), _growth_assess(g.earnings_growth_yoy), "earnings_growth_yoy", rel("earnings_growth_yoy"))
-    _rm_rel(t, "Earnings CAGR (3Y)", _pct(g.earnings_cagr_3y), _cagr_assess(g.earnings_cagr_3y), "earnings_cagr_3y", rel("earnings_cagr_3y"))
-    _rm_rel(t, "Earnings CAGR (5Y)", _pct(g.earnings_cagr_5y), _cagr_assess(g.earnings_cagr_5y), "earnings_cagr_5y", rel("earnings_cagr_5y"))
-    _rm_rel(t, "FCF Growth (YoY)", _pct(g.fcf_growth_yoy), _growth_assess(g.fcf_growth_yoy), "fcf_growth_yoy", rel("fcf_growth_yoy"))
-    _rm_rel(t, "Book Value Growth (YoY)", _pct(g.book_value_growth_yoy), _growth_assess(g.book_value_growth_yoy), "book_value_growth_yoy", rel("book_value_growth_yoy"))
-    _rm_rel(t, "Share Dilution (YoY)", _pct(g.shares_growth_yoy), _dilution_assess(g.shares_growth_yoy), "shares_growth_yoy", rel("shares_growth_yoy"))
-    _rm_rel(t, "Share Dilution CAGR (3Y)", _pct(g.shares_growth_3y_cagr), _cagr_assess(g.shares_growth_3y_cagr), "shares_growth_3y_cagr", rel("shares_growth_3y_cagr"))
+    _rm_rel(t, "Revenue Growth (YoY)", _pct(g.revenue_growth_yoy), _growth_assess(g.revenue_growth_yoy), "revenue_growth_yoy", rel("revenue_growth_yoy"), _s_revg(g.revenue_growth_yoy))
+    _rm_rel(t, "Revenue CAGR (3Y)", _pct(g.revenue_cagr_3y), _cagr_assess(g.revenue_cagr_3y), "revenue_cagr_3y", rel("revenue_cagr_3y"), _s_revcagr(g.revenue_cagr_3y))
+    _rm_rel(t, "Revenue CAGR (5Y)", _pct(g.revenue_cagr_5y), _cagr_assess(g.revenue_cagr_5y), "revenue_cagr_5y", rel("revenue_cagr_5y"), _s_revcagr(g.revenue_cagr_5y))
+    _rm_rel(t, "Earnings Growth (YoY)", _pct(g.earnings_growth_yoy), _growth_assess(g.earnings_growth_yoy), "earnings_growth_yoy", rel("earnings_growth_yoy"), _s_earng(g.earnings_growth_yoy))
+    _rm_rel(t, "Earnings CAGR (3Y)", _pct(g.earnings_cagr_3y), _cagr_assess(g.earnings_cagr_3y), "earnings_cagr_3y", rel("earnings_cagr_3y"), _s_revcagr(g.earnings_cagr_3y))
+    _rm_rel(t, "Earnings CAGR (5Y)", _pct(g.earnings_cagr_5y), _cagr_assess(g.earnings_cagr_5y), "earnings_cagr_5y", rel("earnings_cagr_5y"), _s_revcagr(g.earnings_cagr_5y))
+    _rm_rel(t, "FCF Growth (YoY)", _pct(g.fcf_growth_yoy), _growth_assess(g.fcf_growth_yoy), "fcf_growth_yoy", rel("fcf_growth_yoy"), _s_fcfg(g.fcf_growth_yoy))
+    _rm_rel(t, "Book Value Growth (YoY)", _pct(g.book_value_growth_yoy), _growth_assess(g.book_value_growth_yoy), "book_value_growth_yoy", rel("book_value_growth_yoy"), _s_bvg(g.book_value_growth_yoy))
+    _rm_rel(t, "Share Dilution (YoY)", _pct(g.shares_growth_yoy), _dilution_assess(g.shares_growth_yoy), "shares_growth_yoy", rel("shares_growth_yoy"), _s_dil(g.shares_growth_yoy))
+    _rm_rel(t, "Share Dilution CAGR (3Y)", _pct(g.shares_growth_3y_cagr), _cagr_assess(g.shares_growth_3y_cagr), "shares_growth_3y_cagr", rel("shares_growth_3y_cagr"), _s_dil3y(g.shares_growth_3y_cagr))
     _rm_rel(t, "Dilution Ratio", _num(g.dilution_ratio), _thr(g.dilution_ratio, [(1.0, "No Dilution"), (1.1, "Minimal"), (1.3, "Moderate")], "Significant"), "dilution_ratio", rel("dilution_ratio") if g.dilution_ratio is not None else Relevance.CONTEXTUAL)
     return t
 
@@ -1189,6 +1203,7 @@ def _build_share_structure(r: AnalysisReport) -> Static:
     t = RichTable(show_lines=True, border_style="yellow", expand=True)
     t.add_column("Indicator", style="bold", width=24, no_wrap=True)
     t.add_column("Details", ratio=1, overflow="fold")
+    t.add_column("Impact", width=14, no_wrap=True)
     if ss is None:
         return _rich_table_widget(t)
 
@@ -1198,9 +1213,10 @@ def _build_share_structure(r: AnalysisReport) -> Static:
     def _row(label, value, relevance):
         if relevance == Relevance.IRRELEVANT:
             return
-        prefix = "[bold cyan]*[/] " if relevance == Relevance.CRITICAL else "  "
+        prefix = "[bold cyan]*[/] " if relevance == Relevance.CRITICAL else "[#ff8800]![/] " if relevance == Relevance.IMPORTANT else "  "
         val = f"[dim]{value}[/]" if relevance == Relevance.CONTEXTUAL else value
-        t.add_row(f"{prefix}{label}", val)
+        impact = _TUI_IMPACT.get(relevance, "")
+        t.add_row(f"{prefix}{label}", val, impact)
 
     _row("Shares Outstanding", f"{ss.shares_outstanding:,.0f}" if ss.shares_outstanding else "N/A", rel("shares_outstanding"))
     _row("Fully Diluted Shares", f"{ss.fully_diluted_shares:,.0f}" if ss.fully_diluted_shares else "N/A", rel("fully_diluted_shares"))
@@ -1219,6 +1235,7 @@ def _build_mining_quality(r: AnalysisReport) -> Static:
     t = RichTable(show_lines=True, border_style="yellow", expand=True)
     t.add_column("Indicator", style="bold", width=24, no_wrap=True)
     t.add_column("Assessment", ratio=1, overflow="fold")
+    t.add_column("Impact", width=14, no_wrap=True)
     if m is None:
         return _rich_table_widget(t)
 
@@ -1228,9 +1245,10 @@ def _build_mining_quality(r: AnalysisReport) -> Static:
     def _row(label, value, relevance):
         if relevance == Relevance.IRRELEVANT:
             return
-        prefix = "[bold cyan]*[/] " if relevance == Relevance.CRITICAL else "  "
+        prefix = "[bold cyan]*[/] " if relevance == Relevance.CRITICAL else "[#ff8800]![/] " if relevance == Relevance.IMPORTANT else "  "
         val = f"[dim]{value}[/]" if relevance == Relevance.CONTEXTUAL else value
-        t.add_row(f"{prefix}{label}", val)
+        impact = _TUI_IMPACT.get(relevance, "")
+        t.add_row(f"{prefix}{label}", val, impact)
 
     _row("Quality Score", f"{m.quality_score:.1f}/100" if m.quality_score is not None else "N/A", rel("quality_score"))
     _row("Competitive Position", _s(m.competitive_position), Relevance.RELEVANT)
@@ -1243,10 +1261,10 @@ def _build_mining_quality(r: AnalysisReport) -> Static:
     _row("Management Quality", _s(m.management_quality), Relevance.RELEVANT)
     roic_vals = [v for v in m.roic_history if v is not None]
     if roic_vals:
-        t.add_row("[dim]ROIC Trend[/]", " -> ".join(_pctplain(x) for x in reversed(roic_vals)))
+        t.add_row("[dim]ROIC Trend[/]", " -> ".join(_pctplain(x) for x in reversed(roic_vals)), "")
     gm_vals = [v for v in m.gross_margin_history if v is not None]
     if gm_vals:
-        t.add_row("[dim]GM Trend[/]", " -> ".join(_pctplain(x) for x in reversed(gm_vals)))
+        t.add_row("[dim]GM Trend[/]", " -> ".join(_pctplain(x) for x in reversed(gm_vals)), "")
     return _rich_table_widget(t)
 
 
@@ -1547,22 +1565,45 @@ def _build_news(r: AnalysisReport) -> DataTable:
 # Relevance-aware row helpers
 # ======================================================================
 
+_TUI_IMPACT = {
+    Relevance.CRITICAL: "[bold blink red]Critical[/]",
+    Relevance.IMPORTANT: "[bold #ff8800]Important[/]",
+    Relevance.RELEVANT: "[bold yellow]Relevant[/]",
+    Relevance.CONTEXTUAL: "[green]Info[/]",
+    Relevance.IRRELEVANT: "[dim]Irrelevant[/]",
+}
+
+_TUI_SEVERITY = {
+    Severity.CRITICAL: "[bold red]***CRITICAL***[/]",
+    Severity.WARNING: "[bold #ff8800]*WARNING*[/]",
+    Severity.WATCH: "[bold yellow][WATCH][/]",
+    Severity.OK: "[bold green][OK][/]",
+    Severity.STRONG: "[dim][STRONG][/]",
+    Severity.NA: "[dim]N/A[/]",
+}
+
+
 def _rm_rel(t: DataTable, label: str, value: str, assessment: str,
-            key: str, rel: Relevance) -> None:
-    """Add a metric row with relevance styling."""
+            key: str, rel: Relevance, sev: Severity = Severity.NA) -> None:
+    """Add a metric row with relevance styling, severity, and impact."""
     if rel == Relevance.IRRELEVANT:
         return  # Skip irrelevant metrics entirely
     prefix = ""
     if rel == Relevance.CRITICAL:
         prefix = "* "
         label = f"{prefix}{label}"
+    elif rel == Relevance.IMPORTANT:
+        label = f"! {label}"
     elif rel == Relevance.CONTEXTUAL:
         label = f"  {label}"
         value = f"[dim]{value}[/]" if not value.startswith("[") else value
         assessment = f"[dim]{assessment}[/]" if assessment and not assessment.startswith("[") else assessment
     else:
         label = f"  {label}"
-    t.add_row(str(label), str(value), str(assessment), "\u2139" if key else "", key=key if key else None)
+    sev_text = _TUI_SEVERITY.get(sev, "")
+    impact_text = _TUI_IMPACT.get(rel, "")
+    t.add_row(str(label), str(value), str(assessment), str(sev_text), str(impact_text),
+              "\u2139" if key else "", key=key if key else None)
 
 
 def _r2_rel(t: DataTable, label: str, value: str, rel: Relevance) -> None:

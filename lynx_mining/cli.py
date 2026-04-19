@@ -75,7 +75,9 @@ def run_cli():
     if "--about" in sys.argv:
         from rich.console import Console; from rich.panel import Panel; from lynx_mining import get_about_text
         about = get_about_text(); c = Console(stderr=True)
-        c.print(Panel(f"[bold blue]{about['name']}[/]\n[dim]{about['suite']}[/]\n[dim]Version {about['version']}[/]\n\n"
+        logo = about.get('logo_ascii', '')
+        logo_block = f"[bold green]{logo}[/]\n" if logo else ""
+        c.print(Panel(f"{logo_block}[bold blue]{about['name']}[/]\n[dim]{about['suite']}[/]\n[dim]Version {about['version']}[/]\n\n"
                       f"[bold]By:[/] {about['author']}\n[bold]License:[/] {about['license']}\n\n[dim]{about['description']}[/]",
                       title="[bold]About[/]", border_style="blue"))
         return

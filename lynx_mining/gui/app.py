@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from lynx_mining.metrics.relevance import get_relevance
-from lynx_mining.models import AnalysisReport, CompanyStage, CompanyTier, Relevance
+from lynx_mining.models import AnalysisReport, CompanyStage, CompanyTier, Relevance, Severity
 
 # ---------------------------------------------------------------------------
 # Colour palette (Catppuccin Mocha)
@@ -1421,26 +1421,32 @@ class LynxMiningGUI:
         tier = _get_tier(r)
         rel = lambda key: get_relevance(key, tier, "valuation", stage)
 
+        from lynx_mining.display import (
+            _s_pe, _s_pb, _s_ps, _s_pfcf, _s_ev, _s_evrev, _s_peg,
+            _s_ey, _s_divy, _s_ptb, _s_pncav, _s_ctm,
+        )
         rows = [
-            ("P/E (Trailing)", _num(v.pe_trailing), _ape(v.pe_trailing), "pe_trailing"),
-            ("P/E (Forward)", _num(v.pe_forward), _ape(v.pe_forward), "pe_forward"),
-            ("P/B Ratio", _num(v.pb_ratio), _thr(v.pb_ratio, [(1, "Below Book"), (1.5, "Cheap"), (3, "Fair")], "Premium"), "pb_ratio"),
-            ("P/S Ratio", _num(v.ps_ratio), "", "ps_ratio"),
-            ("P/FCF", _num(v.p_fcf), _thr(v.p_fcf, [(10, "Cheap"), (20, "Fair")], "Expensive"), "p_fcf"),
-            ("EV/EBITDA", _num(v.ev_ebitda), _thr(v.ev_ebitda, [(8, "Cheap"), (12, "Fair"), (18, "Expensive")], "Very Expensive"), "ev_ebitda"),
-            ("EV/Revenue", _num(v.ev_revenue), _thr(v.ev_revenue, [(1, "Very cheap"), (3, "Cheap"), (5, "Fair"), (8, "Expensive")], "Very expensive"), "ev_revenue"),
-            ("PEG Ratio", _num(v.peg_ratio), _thr(v.peg_ratio, [(1, "Undervalued"), (2, "Fair")], "Overvalued"), "peg_ratio"),
-            ("Earnings Yield", _pct(v.earnings_yield), _thr(v.earnings_yield, [(0, "Negative"), (0.05, "Low"), (0.07, "Fair"), (0.10, "Good")], "Excellent"), "earnings_yield"),
-            ("Dividend Yield", _pct(v.dividend_yield), _thr(v.dividend_yield, [(0, "No dividend"), (0.02, "Low"), (0.04, "Moderate"), (0.06, "High")], "Very high"), "dividend_yield"),
-            ("P/Tangible Book", _num(v.price_to_tangible_book), _thr(v.price_to_tangible_book, [(0.67, "Deep Value"), (1, "Below Book"), (1.5, "Near Book")], "Premium"), "price_to_tangible_book"),
-            ("P/NCAV (Net-Net)", _num(v.price_to_ncav), _thr(v.price_to_ncav, [(0.67, "Classic Net-Net"), (1, "Below NCAV"), (1.5, "Near NCAV")], "Above NCAV"), "price_to_ncav"),
-            ("Cash/Market Cap", _pct(v.cash_to_market_cap), _thr(v.cash_to_market_cap, [(0.10, "Low"), (0.30, "Moderate"), (0.50, "Strong")], "Very Strong Cash Backing"), ""),
-            ("Enterprise Value", _money(v.enterprise_value), "", ""),
-            ("Market Cap", _money(v.market_cap), "", ""),
+            ("P/E (Trailing)", _num(v.pe_trailing), _ape(v.pe_trailing), "pe_trailing", _s_pe(v.pe_trailing)),
+            ("P/E (Forward)", _num(v.pe_forward), _ape(v.pe_forward), "pe_forward", _s_pe(v.pe_forward)),
+            ("P/B Ratio", _num(v.pb_ratio), _thr(v.pb_ratio, [(1, "Below Book"), (1.5, "Cheap"), (3, "Fair")], "Premium"), "pb_ratio", _s_pb(v.pb_ratio)),
+            ("P/S Ratio", _num(v.ps_ratio), "", "ps_ratio", _s_ps(v.ps_ratio)),
+            ("P/FCF", _num(v.p_fcf), _thr(v.p_fcf, [(10, "Cheap"), (20, "Fair")], "Expensive"), "p_fcf", _s_pfcf(v.p_fcf)),
+            ("EV/EBITDA", _num(v.ev_ebitda), _thr(v.ev_ebitda, [(8, "Cheap"), (12, "Fair"), (18, "Expensive")], "Very Expensive"), "ev_ebitda", _s_ev(v.ev_ebitda)),
+            ("EV/Revenue", _num(v.ev_revenue), _thr(v.ev_revenue, [(1, "Very cheap"), (3, "Cheap"), (5, "Fair"), (8, "Expensive")], "Very expensive"), "ev_revenue", _s_evrev(v.ev_revenue)),
+            ("PEG Ratio", _num(v.peg_ratio), _thr(v.peg_ratio, [(1, "Undervalued"), (2, "Fair")], "Overvalued"), "peg_ratio", _s_peg(v.peg_ratio)),
+            ("Earnings Yield", _pct(v.earnings_yield), _thr(v.earnings_yield, [(0, "Negative"), (0.05, "Low"), (0.07, "Fair"), (0.10, "Good")], "Excellent"), "earnings_yield", _s_ey(v.earnings_yield)),
+            ("Dividend Yield", _pct(v.dividend_yield), _thr(v.dividend_yield, [(0, "No dividend"), (0.02, "Low"), (0.04, "Moderate"), (0.06, "High")], "Very high"), "dividend_yield", _s_divy(v.dividend_yield)),
+            ("P/Tangible Book", _num(v.price_to_tangible_book), _thr(v.price_to_tangible_book, [(0.67, "Deep Value"), (1, "Below Book"), (1.5, "Near Book")], "Premium"), "price_to_tangible_book", _s_ptb(v.price_to_tangible_book)),
+            ("P/NCAV (Net-Net)", _num(v.price_to_ncav), _thr(v.price_to_ncav, [(0.67, "Classic Net-Net"), (1, "Below NCAV"), (1.5, "Near NCAV")], "Above NCAV"), "price_to_ncav", _s_pncav(v.price_to_ncav)),
+            ("Cash/Market Cap", _pct(v.cash_to_market_cap), _thr(v.cash_to_market_cap, [(0.10, "Low"), (0.30, "Moderate"), (0.50, "Strong")], "Very Strong Cash Backing"), "", _s_ctm(v.cash_to_market_cap)),
+            ("Enterprise Value", _money(v.enterprise_value), "", "", Severity.NA),
+            ("Market Cap", _money(v.market_cap), "", "", Severity.NA),
         ]
-        for i, (label, value, assessment, key) in enumerate(rows):
+        for i, (label, value, assessment, key, sev) in enumerate(rows):
+            sev_text, sev_color = _gui_severity(sev)
             self._add_metric_row_rel(frame, i, label, value, assessment,
-                                     metric_key=key, relevance=rel(key) if key else Relevance.RELEVANT)
+                                     metric_key=key, relevance=rel(key) if key else Relevance.RELEVANT,
+                                     severity_text=sev_text, severity_color=sev_color)
 
     # ---- Profitability ---------------------------------------------------
 
@@ -1453,18 +1459,21 @@ class LynxMiningGUI:
         tier = _get_tier(r)
         rel = lambda key: get_relevance(key, tier, "profitability", stage)
 
+        from lynx_mining.display import (
+            _s_roe, _s_roa, _s_roic, _s_gm, _s_om, _s_nm, _s_fcfm, _s_ebitdam,
+        )
         rows = [
-            ("ROE", _pct(p.roe), _thr(p.roe, [(0, "Negative"), (0.10, "Below Avg"), (0.15, "Good"), (0.20, "Excellent")], "Outstanding"), "roe"),
-            ("ROA", _pct(p.roa), _thr(p.roa, [(0, "Negative"), (0.05, "Low"), (0.10, "Good")], "Excellent"), "roa"),
-            ("ROIC", _pct(p.roic), _thr(p.roic, [(0, "Negative"), (0.07, "Below WACC"), (0.10, "Good"), (0.15, "Wide Moat")], "Exceptional"), "roic"),
-            ("Gross Margin", _pct(p.gross_margin), _thr(p.gross_margin, [(0, "Negative"), (0.20, "Thin"), (0.40, "Good"), (0.60, "Strong")], "Very strong"), "gross_margin"),
-            ("Operating Margin", _pct(p.operating_margin), _thr(p.operating_margin, [(0, "Loss"), (0.05, "Thin"), (0.15, "Good"), (0.25, "Excellent")], "Outstanding"), "operating_margin"),
-            ("Net Margin", _pct(p.net_margin), _thr(p.net_margin, [(0, "Loss"), (0.05, "Thin"), (0.10, "Good"), (0.20, "Excellent")], "Outstanding"), "net_margin"),
-            ("FCF Margin", _pct(p.fcf_margin), _thr(p.fcf_margin, [(0, "Negative"), (0.05, "Weak"), (0.10, "Good"), (0.20, "Strong")], "Excellent"), "fcf_margin"),
-            ("EBITDA Margin", _pct(p.ebitda_margin), _thr(p.ebitda_margin, [(0, "Negative"), (0.05, "Thin"), (0.15, "Good"), (0.30, "Excellent")], "Outstanding"), "ebitda_margin"),
+            ("ROE", _pct(p.roe), _thr(p.roe, [(0, "Negative"), (0.10, "Below Avg"), (0.15, "Good"), (0.20, "Excellent")], "Outstanding"), "roe", _s_roe(p.roe)),
+            ("ROA", _pct(p.roa), _thr(p.roa, [(0, "Negative"), (0.05, "Low"), (0.10, "Good")], "Excellent"), "roa", _s_roa(p.roa)),
+            ("ROIC", _pct(p.roic), _thr(p.roic, [(0, "Negative"), (0.07, "Below WACC"), (0.10, "Good"), (0.15, "Wide Moat")], "Exceptional"), "roic", _s_roic(p.roic)),
+            ("Gross Margin", _pct(p.gross_margin), _thr(p.gross_margin, [(0, "Negative"), (0.20, "Thin"), (0.40, "Good"), (0.60, "Strong")], "Very strong"), "gross_margin", _s_gm(p.gross_margin)),
+            ("Operating Margin", _pct(p.operating_margin), _thr(p.operating_margin, [(0, "Loss"), (0.05, "Thin"), (0.15, "Good"), (0.25, "Excellent")], "Outstanding"), "operating_margin", _s_om(p.operating_margin)),
+            ("Net Margin", _pct(p.net_margin), _thr(p.net_margin, [(0, "Loss"), (0.05, "Thin"), (0.10, "Good"), (0.20, "Excellent")], "Outstanding"), "net_margin", _s_nm(p.net_margin)),
+            ("FCF Margin", _pct(p.fcf_margin), _thr(p.fcf_margin, [(0, "Negative"), (0.05, "Weak"), (0.10, "Good"), (0.20, "Strong")], "Excellent"), "fcf_margin", _s_fcfm(p.fcf_margin)),
+            ("EBITDA Margin", _pct(p.ebitda_margin), _thr(p.ebitda_margin, [(0, "Negative"), (0.05, "Thin"), (0.15, "Good"), (0.30, "Excellent")], "Outstanding"), "ebitda_margin", _s_ebitdam(p.ebitda_margin)),
         ]
 
-        all_irrelevant = all(rel(key) == Relevance.IRRELEVANT for _, _, _, key in rows)
+        all_irrelevant = all(rel(key) == Relevance.IRRELEVANT for _, _, _, key, _ in rows)
 
         card = CollapsibleCard(
             self.scroll_frame, "Profitability",
@@ -1486,9 +1495,11 @@ class LynxMiningGUI:
             )
             note.pack(fill=tk.X)
         else:
-            for i, (label, value, assessment, key) in enumerate(rows):
+            for i, (label, value, assessment, key, sev) in enumerate(rows):
+                sev_text, sev_color = _gui_severity(sev)
                 self._add_metric_row_rel(frame, i, label, value, assessment,
-                                         metric_key=key, relevance=rel(key))
+                                         metric_key=key, relevance=rel(key),
+                                         severity_text=sev_text, severity_color=sev_color)
 
     # ---- Solvency --------------------------------------------------------
 
@@ -1523,26 +1534,32 @@ class LynxMiningGUI:
             except Exception:
                 return ""
 
+        from lynx_mining.display import (
+            _s_de, _s_cr, _s_qr, _s_ic, _s_burn, _s_runway, _s_burn_pct,
+            _s_wc, _s_total_debt, _s_net_debt,
+        )
         rows = [
-            ("Debt/Equity", _num(s.debt_to_equity), _thr(s.debt_to_equity, [(0.3, "Very Conservative"), (0.5, "Conservative"), (1.0, "Moderate"), (2.0, "High")], "Very High"), "debt_to_equity"),
-            ("Debt/EBITDA", _num(s.debt_to_ebitda), _thr(s.debt_to_ebitda, [(1, "Very Low"), (2, "Manageable"), (3, "Moderate")], "Heavy"), "debt_to_ebitda"),
-            ("Current Ratio", _num(s.current_ratio), _thr(s.current_ratio, [(1.0, "Liquidity Risk"), (1.5, "Adequate"), (2.0, "Good")], "Strong"), "current_ratio"),
-            ("Quick Ratio", _num(s.quick_ratio), "", "quick_ratio"),
-            ("Interest Coverage", _num(s.interest_coverage, 1), _thr(s.interest_coverage, [(1, "Cannot cover"), (2, "Tight"), (4, "Adequate"), (8, "Strong")], "Very strong"), "interest_coverage"),
-            ("Altman Z-Score", _num(s.altman_z_score), _thr(s.altman_z_score, [(1.81, "Distress"), (2.99, "Grey Zone")], "Safe"), "altman_z_score"),
-            ("Cash Burn Rate (/yr)", _money(s.cash_burn_rate), _burn(s.cash_burn_rate), "cash_burn_rate"),
-            ("Burn % of MCap (/yr)", _pct(s.burn_as_pct_of_market_cap), _burn_pct_assessment(s.burn_as_pct_of_market_cap), ""),
-            ("Cash Runway", f"{s.cash_runway_years:.1f} yrs" if s.cash_runway_years is not None else "N/A", "", "cash_runway_years"),
-            ("Working Capital", _money(s.working_capital), "", ""),
-            ("Cash Per Share", f"${s.cash_per_share:.2f}" if s.cash_per_share is not None else "N/A", "", ""),
-            ("NCAV Per Share", f"${s.ncav_per_share:.4f}" if s.ncav_per_share is not None else "N/A", "", "ncav_per_share"),
-            ("Total Debt", _money(s.total_debt), "", ""),
-            ("Total Cash", _money(s.total_cash), "", ""),
-            ("Net Debt", _money(s.net_debt), "", ""),
+            ("Debt/Equity", _num(s.debt_to_equity), _thr(s.debt_to_equity, [(0.3, "Very Conservative"), (0.5, "Conservative"), (1.0, "Moderate"), (2.0, "High")], "Very High"), "debt_to_equity", _s_de(s.debt_to_equity)),
+            ("Debt/EBITDA", _num(s.debt_to_ebitda), _thr(s.debt_to_ebitda, [(1, "Very Low"), (2, "Manageable"), (3, "Moderate")], "Heavy"), "debt_to_ebitda", Severity.NA),
+            ("Current Ratio", _num(s.current_ratio), _thr(s.current_ratio, [(1.0, "Liquidity Risk"), (1.5, "Adequate"), (2.0, "Good")], "Strong"), "current_ratio", _s_cr(s.current_ratio)),
+            ("Quick Ratio", _num(s.quick_ratio), "", "quick_ratio", _s_qr(s.quick_ratio)),
+            ("Interest Coverage", _num(s.interest_coverage, 1), _thr(s.interest_coverage, [(1, "Cannot cover"), (2, "Tight"), (4, "Adequate"), (8, "Strong")], "Very strong"), "interest_coverage", _s_ic(s.interest_coverage)),
+            ("Altman Z-Score", _num(s.altman_z_score), _thr(s.altman_z_score, [(1.81, "Distress"), (2.99, "Grey Zone")], "Safe"), "altman_z_score", Severity.NA),
+            ("Cash Burn Rate (/yr)", _money(s.cash_burn_rate), _burn(s.cash_burn_rate), "cash_burn_rate", _s_burn(s.cash_burn_rate)),
+            ("Burn % of MCap (/yr)", _pct(s.burn_as_pct_of_market_cap), _burn_pct_assessment(s.burn_as_pct_of_market_cap), "", _s_burn_pct(s.burn_as_pct_of_market_cap)),
+            ("Cash Runway", f"{s.cash_runway_years:.1f} yrs" if s.cash_runway_years is not None else "N/A", "", "cash_runway_years", _s_runway(s.cash_runway_years)),
+            ("Working Capital", _money(s.working_capital), "", "", _s_wc(s.working_capital)),
+            ("Cash Per Share", f"${s.cash_per_share:.2f}" if s.cash_per_share is not None else "N/A", "", "", Severity.NA),
+            ("NCAV Per Share", f"${s.ncav_per_share:.4f}" if s.ncav_per_share is not None else "N/A", "", "ncav_per_share", Severity.NA),
+            ("Total Debt", _money(s.total_debt), "", "", _s_total_debt(s.total_debt)),
+            ("Total Cash", _money(s.total_cash), "", "", Severity.NA),
+            ("Net Debt", _money(s.net_debt), "", "", _s_net_debt(s.net_debt)),
         ]
-        for i, (label, value, assessment, key) in enumerate(rows):
+        for i, (label, value, assessment, key, sev) in enumerate(rows):
+            sev_text, sev_color = _gui_severity(sev)
             self._add_metric_row_rel(frame, i, label, value, assessment,
-                                     metric_key=key, relevance=rel(key) if key else Relevance.RELEVANT)
+                                     metric_key=key, relevance=rel(key) if key else Relevance.RELEVANT,
+                                     severity_text=sev_text, severity_color=sev_color)
 
     # ---- Growth ----------------------------------------------------------
 
@@ -1588,22 +1605,27 @@ class LynxMiningGUI:
                 return "Heavy warrant/option overhang"
             except Exception: return ""
 
+        from lynx_mining.display import (
+            _s_revg, _s_revcagr, _s_earng, _s_bvg, _s_fcfg, _s_dil, _s_dil3y,
+        )
         rows = [
-            ("Revenue Growth (YoY)", _pct(g.revenue_growth_yoy), _ga(g.revenue_growth_yoy), "revenue_growth_yoy"),
-            ("Revenue CAGR (3Y)", _pct(g.revenue_cagr_3y), _ca(g.revenue_cagr_3y), "revenue_cagr_3y"),
-            ("Revenue CAGR (5Y)", _pct(g.revenue_cagr_5y), _ca(g.revenue_cagr_5y), "revenue_cagr_5y"),
-            ("Earnings Growth (YoY)", _pct(g.earnings_growth_yoy), _ga(g.earnings_growth_yoy), "earnings_growth_yoy"),
-            ("Earnings CAGR (3Y)", _pct(g.earnings_cagr_3y), _ca(g.earnings_cagr_3y), "earnings_cagr_3y"),
-            ("Earnings CAGR (5Y)", _pct(g.earnings_cagr_5y), _ca(g.earnings_cagr_5y), "earnings_cagr_5y"),
-            ("FCF Growth (YoY)", _pct(g.fcf_growth_yoy), _ga(g.fcf_growth_yoy), ""),
-            ("Book Value Growth (YoY)", _pct(g.book_value_growth_yoy), _ga(g.book_value_growth_yoy), ""),
-            ("Share Dilution (YoY)", _pct(g.shares_growth_yoy), _da(g.shares_growth_yoy), "shares_growth_yoy"),
-            ("Dilution CAGR (3Y)", _pct(g.shares_growth_3y_cagr), _da(g.shares_growth_3y_cagr), ""),
-            ("Dilution Ratio", _num(g.dilution_ratio), _dr(g.dilution_ratio), ""),
+            ("Revenue Growth (YoY)", _pct(g.revenue_growth_yoy), _ga(g.revenue_growth_yoy), "revenue_growth_yoy", _s_revg(g.revenue_growth_yoy)),
+            ("Revenue CAGR (3Y)", _pct(g.revenue_cagr_3y), _ca(g.revenue_cagr_3y), "revenue_cagr_3y", _s_revcagr(g.revenue_cagr_3y)),
+            ("Revenue CAGR (5Y)", _pct(g.revenue_cagr_5y), _ca(g.revenue_cagr_5y), "revenue_cagr_5y", _s_revcagr(g.revenue_cagr_5y)),
+            ("Earnings Growth (YoY)", _pct(g.earnings_growth_yoy), _ga(g.earnings_growth_yoy), "earnings_growth_yoy", _s_earng(g.earnings_growth_yoy)),
+            ("Earnings CAGR (3Y)", _pct(g.earnings_cagr_3y), _ca(g.earnings_cagr_3y), "earnings_cagr_3y", _s_revcagr(g.earnings_cagr_3y)),
+            ("Earnings CAGR (5Y)", _pct(g.earnings_cagr_5y), _ca(g.earnings_cagr_5y), "earnings_cagr_5y", _s_revcagr(g.earnings_cagr_5y)),
+            ("FCF Growth (YoY)", _pct(g.fcf_growth_yoy), _ga(g.fcf_growth_yoy), "", _s_fcfg(g.fcf_growth_yoy)),
+            ("Book Value Growth (YoY)", _pct(g.book_value_growth_yoy), _ga(g.book_value_growth_yoy), "", _s_bvg(g.book_value_growth_yoy)),
+            ("Share Dilution (YoY)", _pct(g.shares_growth_yoy), _da(g.shares_growth_yoy), "shares_growth_yoy", _s_dil(g.shares_growth_yoy)),
+            ("Dilution CAGR (3Y)", _pct(g.shares_growth_3y_cagr), _da(g.shares_growth_3y_cagr), "", _s_dil3y(g.shares_growth_3y_cagr)),
+            ("Dilution Ratio", _num(g.dilution_ratio), _dr(g.dilution_ratio), "", Severity.NA),
         ]
-        for i, (label, value, assessment, key) in enumerate(rows):
+        for i, (label, value, assessment, key, sev) in enumerate(rows):
+            sev_text, sev_color = _gui_severity(sev)
             self._add_metric_row_rel(frame, i, label, value, assessment,
-                                     metric_key=key, relevance=rel(key) if key else Relevance.RELEVANT)
+                                     metric_key=key, relevance=rel(key) if key else Relevance.RELEVANT,
+                                     severity_text=sev_text, severity_color=sev_color)
 
     # ---- Share Structure -------------------------------------------------
 
@@ -2398,8 +2420,9 @@ class LynxMiningGUI:
             )
             btn.pack(side=tk.RIGHT, padx=(0, 8))
 
-    def _add_metric_row_rel(self, frame, idx, label, value, assessment, metric_key="", relevance=Relevance.RELEVANT):
-        """Add a metric row with relevance-based styling."""
+    def _add_metric_row_rel(self, frame, idx, label, value, assessment, metric_key="",
+                            relevance=Relevance.RELEVANT, severity_text="", severity_color=None):
+        """Add a metric row with relevance-based styling, severity, and impact."""
         if relevance == Relevance.IRRELEVANT:
             return  # Skip entirely
         bg = BG_INPUT if idx % 2 == 0 else BG_CARD
@@ -2410,6 +2433,10 @@ class LynxMiningGUI:
         if relevance == Relevance.CRITICAL:
             prefix = f"{STAR} "
             label_fg = ACCENT
+            label_font = FONT_BOLD
+        elif relevance == Relevance.IMPORTANT:
+            prefix = "! "
+            label_fg = "#ff8800"
             label_font = FONT_BOLD
         elif relevance == Relevance.CONTEXTUAL:
             prefix = "  "
@@ -2425,13 +2452,24 @@ class LynxMiningGUI:
 
         val_fg = FG_DIM if relevance == Relevance.CONTEXTUAL else FG
         tk.Label(row, text=value, font=FONT if relevance != Relevance.CONTEXTUAL else FONT_SMALL,
-                 bg=bg, fg=val_fg, width=18, anchor=tk.W, pady=3).pack(side=tk.LEFT, padx=(6, 4))
+                 bg=bg, fg=val_fg, width=14, anchor=tk.W, pady=3).pack(side=tk.LEFT, padx=(6, 2))
 
         if assessment:
             assess_fg = _assessment_color(assessment) if relevance != Relevance.CONTEXTUAL else FG_SUBTLE
             tk.Label(row, text=assessment, font=FONT_SMALL, bg=bg, fg=assess_fg,
-                     anchor=tk.W, pady=3, wraplength=400, justify=tk.LEFT,
-                     ).pack(side=tk.LEFT, padx=(4, 4), fill=tk.X, expand=True)
+                     anchor=tk.W, pady=3, wraplength=300, justify=tk.LEFT,
+                     ).pack(side=tk.LEFT, padx=(2, 2), fill=tk.X, expand=True)
+
+        # Severity tag
+        if severity_text:
+            sev_fg = severity_color or FG_DIM
+            tk.Label(row, text=severity_text, font=(_FAMILY, 8, "bold"), bg=bg, fg=sev_fg,
+                     width=14, anchor=tk.CENTER, pady=3).pack(side=tk.LEFT, padx=(2, 2))
+
+        # Impact tag
+        impact_text, impact_fg = _gui_impact(relevance)
+        tk.Label(row, text=impact_text, font=(_FAMILY, 8, "bold"), bg=bg, fg=impact_fg,
+                 width=12, anchor=tk.CENTER, pady=3).pack(side=tk.LEFT, padx=(2, 2))
 
         if metric_key:
             btn = tk.Button(row, text=" ? ", font=(_FAMILY, 9, "bold"),
@@ -2448,15 +2486,19 @@ class LynxMiningGUI:
         bg = BG_INPUT if idx % 2 == 0 else BG_CARD
         row = tk.Frame(frame, bg=bg)
         row.pack(fill=tk.X)
-        prefix = f"{STAR} " if relevance == Relevance.CRITICAL else "  "
-        fg = FG_SUBTLE if relevance == Relevance.CONTEXTUAL else ACCENT
+        prefix = f"{STAR} " if relevance == Relevance.CRITICAL else "! " if relevance == Relevance.IMPORTANT else "  "
+        fg = FG_SUBTLE if relevance == Relevance.CONTEXTUAL else "#ff8800" if relevance == Relevance.IMPORTANT else ACCENT
         tk.Label(row, text=f"{prefix}{label}", font=FONT_BOLD if relevance != Relevance.CONTEXTUAL else FONT_SMALL,
                  bg=bg, fg=fg, width=24, anchor=tk.E, pady=3).pack(side=tk.LEFT, padx=(12, 6))
         val_fg = FG_DIM if relevance == Relevance.CONTEXTUAL else FG
         tk.Label(row, text=value, font=FONT if relevance != Relevance.CONTEXTUAL else FONT_SMALL,
                  bg=bg, fg=val_fg, anchor=tk.W, pady=3,
-                 wraplength=600, justify=tk.LEFT,
-                 ).pack(side=tk.LEFT, padx=(6, 12), fill=tk.X, expand=True)
+                 wraplength=500, justify=tk.LEFT,
+                 ).pack(side=tk.LEFT, padx=(6, 4), fill=tk.X, expand=True)
+        # Impact tag
+        impact_text, impact_fg = _gui_impact(relevance)
+        tk.Label(row, text=impact_text, font=(_FAMILY, 8, "bold"), bg=bg, fg=impact_fg,
+                 width=12, anchor=tk.CENTER, pady=3).pack(side=tk.LEFT, padx=(2, 12))
 
     # ---- Explanation popups ------------------------------------------------
 
@@ -2689,6 +2731,29 @@ def _get_tier(r: AnalysisReport) -> CompanyTier:
     except Exception:
         pass
     return CompanyTier.NANO
+
+
+def _gui_impact(relevance: Relevance) -> tuple:
+    """Return (text, color) for the Impact column based on relevance."""
+    return {
+        Relevance.CRITICAL: ("Critical", "#ff0000"),
+        Relevance.IMPORTANT: ("Important", "#ff8800"),
+        Relevance.RELEVANT: ("Relevant", YELLOW),
+        Relevance.CONTEXTUAL: ("Info", GREEN),
+        Relevance.IRRELEVANT: ("Irrelevant", FG_DIM),
+    }.get(relevance, ("", FG_DIM))
+
+
+def _gui_severity(sev: Severity) -> tuple:
+    """Return (text, color) for the Severity tag."""
+    return {
+        Severity.CRITICAL: ("***CRITICAL***", "#ff0000"),
+        Severity.WARNING: ("*WARNING*", "#ff8800"),
+        Severity.WATCH: ("[WATCH]", YELLOW),
+        Severity.OK: ("[OK]", GREEN),
+        Severity.STRONG: ("[STRONG]", "#a0a0a0"),
+        Severity.NA: ("", FG_DIM),
+    }.get(sev, ("", FG_DIM))
 
 
 def _assessment_color(text: str) -> str:

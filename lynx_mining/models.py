@@ -70,9 +70,19 @@ class JurisdictionTier(str, Enum):
 
 class Relevance(str, Enum):
     CRITICAL = "critical"
+    IMPORTANT = "important"
     RELEVANT = "relevant"
     CONTEXTUAL = "contextual"
     IRRELEVANT = "irrelevant"
+
+
+class Severity(str, Enum):
+    CRITICAL = "CRITICAL"
+    WARNING = "WARNING"
+    WATCH = "WATCH"
+    OK = "OK"
+    STRONG = "STRONG"
+    NA = "N/A"
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +169,11 @@ class SolvencyMetrics:
     ncav_per_share: Optional[float] = None
     quarterly_burn_rate: Optional[float] = None
     burn_as_pct_of_market_cap: Optional[float] = None
+    # Mining-specific solvency
+    cash_coverage_months: Optional[float] = None  # total_cash / monthly_burn
+    capex_to_cfo: Optional[float] = None  # capex / operating cash flow
+    tangible_asset_ratio: Optional[float] = None  # tangible assets / total assets
+    debt_service_coverage: Optional[float] = None  # EBITDA / (interest + debt payments)
 
 
 @dataclass
@@ -177,6 +192,10 @@ class GrowthMetrics:
     fully_diluted_shares: Optional[float] = None
     dilution_ratio: Optional[float] = None
     production_growth_yoy: Optional[float] = None
+    # Mining-specific growth
+    capex_intensity: Optional[float] = None  # capex / revenue
+    exploration_ratio: Optional[float] = None  # exploration / total_assets
+    operating_leverage: Optional[float] = None  # rev_growth / income_growth ratio
 
 
 @dataclass

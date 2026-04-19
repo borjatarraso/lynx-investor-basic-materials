@@ -6,14 +6,14 @@ import math
 from pathlib import Path
 from typing import Optional
 
-from lynx_mining.models import AnalysisReport, CompanyStage
+from lynx_mining.models import AnalysisReport, CompanyStage, Severity
 
 
 # ---------------------------------------------------------------------------
 # Formatting helpers
 # ---------------------------------------------------------------------------
 
-W = 70  # report width
+W = 90  # report width
 
 
 def _safe(val, default=None):
@@ -79,8 +79,21 @@ def _fmt_bool(val) -> str:
     return "Yes" if val else "No"
 
 
-def _row(label: str, value: str, width: int = W) -> str:
-    """Format a label-value row with right-aligned value."""
+_SEV_TAG = {
+    Severity.CRITICAL: "***CRITICAL***",
+    Severity.WARNING: "*WARNING*",
+    Severity.WATCH: "[WATCH]",
+    Severity.OK: "[OK]",
+    Severity.STRONG: "[STRONG]",
+    Severity.NA: "",
+}
+
+
+def _row(label: str, value: str, width: int = W, sev: Severity = Severity.NA) -> str:
+    """Format a label-value row with right-aligned value and optional severity."""
+    tag = _SEV_TAG.get(sev, "")
+    if tag:
+        value = f"{value}  {tag}"
     gap = width - len(label) - len(value)
     if gap < 2:
         gap = 2
@@ -139,32 +152,36 @@ def export_txt(report: AnalysisReport, output_path: Path) -> Path:
     # Valuation Metrics
     # ------------------------------------------------------------------
     if report.valuation:
+        from lynx_mining.display import (
+            _s_pe, _s_pb, _s_ps, _s_pfcf, _s_ev, _s_evrev, _s_peg,
+            _s_ey, _s_divy, _s_ptb, _s_pncav, _s_ctm,
+        )
         v = report.valuation
         lines += _section("VALUATION METRICS")
         _fields = [
-            ("P/E (Trailing)", _fmt_ratio(v.pe_trailing)),
-            ("P/E (Forward)", _fmt_ratio(v.pe_forward)),
-            ("P/B Ratio", _fmt_ratio(v.pb_ratio)),
-            ("P/S Ratio", _fmt_ratio(v.ps_ratio)),
-            ("P/FCF", _fmt_ratio(v.p_fcf)),
-            ("EV/EBITDA", _fmt_ratio(v.ev_ebitda)),
-            ("EV/Revenue", _fmt_ratio(v.ev_revenue)),
-            ("PEG Ratio", _fmt_ratio(v.peg_ratio)),
-            ("Dividend Yield", _fmt_pct(v.dividend_yield)),
-            ("Earnings Yield", _fmt_pct(v.earnings_yield)),
-            ("Enterprise Value", _fmt_money(v.enterprise_value)),
-            ("Market Cap", _fmt_money(v.market_cap)),
-            ("P/Tangible Book", _fmt_ratio(v.price_to_tangible_book)),
-            ("P/NCAV", _fmt_ratio(v.price_to_ncav)),
-            ("EV/Resource (oz)", _fmt_money(v.ev_per_resource_oz)),
-            ("EV/Resource (lb)", _fmt_money(v.ev_per_resource_lb)),
-            ("P/NAV", _fmt_ratio(v.p_nav)),
-            ("Cash/Market Cap", _fmt_pct(v.cash_to_market_cap)),
-            ("NAV/Share", _fmt_money(v.nav_per_share)),
+            ("P/E (Trailing)", _fmt_ratio(v.pe_trailing), _s_pe(v.pe_trailing)),
+            ("P/E (Forward)", _fmt_ratio(v.pe_forward), _s_pe(v.pe_forward)),
+            ("P/B Ratio", _fmt_ratio(v.pb_ratio), _s_pb(v.pb_ratio)),
+            ("P/S Ratio", _fmt_ratio(v.ps_ratio), _s_ps(v.ps_ratio)),
+            ("P/FCF", _fmt_ratio(v.p_fcf), _s_pfcf(v.p_fcf)),
+            ("EV/EBITDA", _fmt_ratio(v.ev_ebitda), _s_ev(v.ev_ebitda)),
+            ("EV/Revenue", _fmt_ratio(v.ev_revenue), _s_evrev(v.ev_revenue)),
+            ("PEG Ratio", _fmt_ratio(v.peg_ratio), _s_peg(v.peg_ratio)),
+            ("Dividend Yield", _fmt_pct(v.dividend_yield), _s_divy(v.dividend_yield)),
+            ("Earnings Yield", _fmt_pct(v.earnings_yield), _s_ey(v.earnings_yield)),
+            ("Enterprise Value", _fmt_money(v.enterprise_value), Severity.NA),
+            ("Market Cap", _fmt_money(v.market_cap), Severity.NA),
+            ("P/Tangible Book", _fmt_ratio(v.price_to_tangible_book), _s_ptb(v.price_to_tangible_book)),
+            ("P/NCAV", _fmt_ratio(v.price_to_ncav), _s_pncav(v.price_to_ncav)),
+            ("EV/Resource (oz)", _fmt_money(v.ev_per_resource_oz), Severity.NA),
+            ("EV/Resource (lb)", _fmt_money(v.ev_per_resource_lb), Severity.NA),
+            ("P/NAV", _fmt_ratio(v.p_nav), Severity.NA),
+            ("Cash/Market Cap", _fmt_pct(v.cash_to_market_cap), _s_ctm(v.cash_to_market_cap)),
+            ("NAV/Share", _fmt_money(v.nav_per_share), Severity.NA),
         ]
-        for label, val in _fields:
+        for label, val, sev in _fields:
             if val != "N/A":
-                lines.append(_row(label, val))
+                lines.append(_row(label, val, sev=sev))
 
     # ------------------------------------------------------------------
     # Profitability Metrics
@@ -200,31 +217,35 @@ def export_txt(report: AnalysisReport, output_path: Path) -> Path:
     # Solvency & Survival
     # ------------------------------------------------------------------
     if report.solvency:
+        from lynx_mining.display import (
+            _s_de, _s_cr, _s_qr, _s_ic, _s_burn, _s_runway, _s_burn_pct,
+            _s_wc, _s_total_debt, _s_net_debt,
+        )
         s = report.solvency
         lines += _section("SOLVENCY & SURVIVAL")
         _fields = [
-            ("Total Cash", _fmt_money(s.total_cash)),
-            ("Total Debt", _fmt_money(s.total_debt)),
-            ("Net Debt", _fmt_money(s.net_debt)),
-            ("Cash/Share", _fmt_money(s.cash_per_share)),
-            ("Cash Burn Rate (annual)", _fmt_money(s.cash_burn_rate)),
-            ("Quarterly Burn Rate", _fmt_money(s.quarterly_burn_rate)),
-            ("Cash Runway", f"{s.cash_runway_years:.1f} years" if _safe(s.cash_runway_years) is not None else "N/A"),
-            ("Burn % of Mkt Cap", _fmt_pct(s.burn_as_pct_of_market_cap)),
-            ("Debt/Equity", _fmt_ratio(s.debt_to_equity)),
-            ("Debt/EBITDA", _fmt_ratio(s.debt_to_ebitda)),
-            ("Current Ratio", _fmt_ratio(s.current_ratio)),
-            ("Quick Ratio", _fmt_ratio(s.quick_ratio)),
-            ("Interest Coverage", _fmt_ratio(s.interest_coverage)),
-            ("Working Capital", _fmt_money(s.working_capital)),
-            ("Altman Z-Score", _fmt_ratio(s.altman_z_score)),
-            ("Tangible Book Value", _fmt_money(s.tangible_book_value)),
-            ("NCAV", _fmt_money(s.ncav)),
-            ("NCAV/Share", _fmt_money(s.ncav_per_share)),
+            ("Total Cash", _fmt_money(s.total_cash), Severity.NA),
+            ("Total Debt", _fmt_money(s.total_debt), _s_total_debt(s.total_debt)),
+            ("Net Debt", _fmt_money(s.net_debt), _s_net_debt(s.net_debt)),
+            ("Cash/Share", _fmt_money(s.cash_per_share), Severity.NA),
+            ("Cash Burn Rate (annual)", _fmt_money(s.cash_burn_rate), _s_burn(s.cash_burn_rate)),
+            ("Quarterly Burn Rate", _fmt_money(s.quarterly_burn_rate), Severity.NA),
+            ("Cash Runway", f"{s.cash_runway_years:.1f} years" if _safe(s.cash_runway_years) is not None else "N/A", _s_runway(s.cash_runway_years)),
+            ("Burn % of Mkt Cap", _fmt_pct(s.burn_as_pct_of_market_cap), _s_burn_pct(s.burn_as_pct_of_market_cap)),
+            ("Debt/Equity", _fmt_ratio(s.debt_to_equity), _s_de(s.debt_to_equity)),
+            ("Debt/EBITDA", _fmt_ratio(s.debt_to_ebitda), Severity.NA),
+            ("Current Ratio", _fmt_ratio(s.current_ratio), _s_cr(s.current_ratio)),
+            ("Quick Ratio", _fmt_ratio(s.quick_ratio), _s_qr(s.quick_ratio)),
+            ("Interest Coverage", _fmt_ratio(s.interest_coverage), _s_ic(s.interest_coverage)),
+            ("Working Capital", _fmt_money(s.working_capital), _s_wc(s.working_capital)),
+            ("Altman Z-Score", _fmt_ratio(s.altman_z_score), Severity.NA),
+            ("Tangible Book Value", _fmt_money(s.tangible_book_value), Severity.NA),
+            ("NCAV", _fmt_money(s.ncav), Severity.NA),
+            ("NCAV/Share", _fmt_money(s.ncav_per_share), Severity.NA),
         ]
-        for label, val in _fields:
+        for label, val, sev in _fields:
             if val != "N/A":
-                lines.append(_row(label, val))
+                lines.append(_row(label, val, sev=sev))
 
     # ------------------------------------------------------------------
     # Growth & Dilution
