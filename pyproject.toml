@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name            = "lynx-investor-basic-materials"
-version         = "1.0"
+version         = "1.1"
 description     = "Lynx Basic Materials — Fundamental analysis specialized for junior mining, uranium, copper & basic materials companies"
 readme          = "README.md"
 requires-python = ">=3.10"
