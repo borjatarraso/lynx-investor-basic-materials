@@ -2,6 +2,20 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [2.0] - 2026-04-19
+
+Major release — **Lince Investor Suite v2.0** unified release.
+
+### Changed
+- **Unified suite**: All Lince Investor projects now share consistent
+  version numbering, logos, keybindings, CLI patterns, export styling,
+  installation instructions, and documentation structure.
+- **Export styling**: Monospace HTML (Consolas family), 90-char TXT width,
+  unified with other suite projects.
+- **Documentation**: Standardized installation section with dependency
+  table matching other suite projects.
+- **Git branch**: Renamed `master` → `main` for consistency.
+
 ## [1.0] - 2026-04-19
 
 ### Added

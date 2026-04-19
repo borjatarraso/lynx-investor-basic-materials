@@ -1,6 +1,6 @@
 # Lynx Basic Materials Analysis -- API Reference
 
-Public Python API for the `lynx_mining` package (v1.0).
+Public Python API for the `lynx_mining` package (v2.0).
 
 ## Package Structure
 

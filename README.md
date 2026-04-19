@@ -32,19 +32,28 @@ Designed for analyzing companies like:
 ## Installation
 
 ```bash
-# Clone or download
+# Clone the repository
+git clone https://github.com/borjatarraso/lynx-investor-basic-materials.git
 cd lynx-investor-basic-materials
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Install in development mode
+# Install in editable mode (creates the `lynx-mining` command)
 pip install -e .
 ```
 
-### Requirements
-- Python >= 3.10
-- yfinance, requests, beautifulsoup4, rich, textual, feedparser, pandas, numpy
+### Dependencies
+
+| Package        | Purpose                              |
+|----------------|--------------------------------------|
+| yfinance       | Financial data from Yahoo Finance    |
+| requests       | HTTP calls (OpenFIGI, EDGAR, etc.)   |
+| beautifulsoup4 | HTML parsing for SEC filings         |
+| rich           | Terminal tables and formatting       |
+| textual        | Full-screen TUI framework            |
+| feedparser     | News RSS feed parsing                |
+| pandas         | Data analysis                        |
+| numpy          | Numerical computing                  |
+
+All dependencies are installed automatically via `pip install -e .`.
 
 ## Usage
 
