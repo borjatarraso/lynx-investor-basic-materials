@@ -8,6 +8,8 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+
+from lynx_investor_core.pager import PagingAppMixin, tui_paging_bindings
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
@@ -456,7 +458,7 @@ class ReportView(VerticalScroll):
 # Main application
 # ======================================================================
 
-class LynxMiningApp(App):
+class LynxMiningApp(PagingAppMixin, App):
     TITLE = "Lynx Basic Materials Analysis"
     SUB_TITLE = "Junior Mining & Basic Materials"
     CSS = """
@@ -643,6 +645,7 @@ class LynxMiningApp(App):
         Binding("space", "toggle_node", "Space:Toggle", show=True),
         Binding("up", "scroll_up", "Up", show=False),
         Binding("down", "scroll_down", "Down", show=False),
+        *tui_paging_bindings(),
         Binding("escape", "app.focus('status-area')", "Esc:Back"),
         Binding("ctrl+l", "_ee_lynx", show=False),
         Binding("ctrl+f", "_ee_fortune", show=False),

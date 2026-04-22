@@ -2,6 +2,29 @@
 
 All notable changes to Lynx Basic Materials Analysis are documented here.
 
+## [3.0] - 2026-04-22
+
+Part of **Lince Investor Suite v3.0** coordinated release.
+
+### Added
+- Uniform PageUp / PageDown navigation across every UI mode (GUI, TUI,
+  interactive, console). Scrolling never goes above the current output
+  in interactive and console mode; Shift+PageUp / Shift+PageDown remain
+  reserved for the terminal emulator's own scrollback.
+- Sector-mismatch warning now appends a `Suggestion: use
+  'lynx-investor-<other>' instead.` line sourced from
+  `lynx_investor_core.sector_registry`. The original warning text is
+  preserved as-is.
+
+### Changed
+- TUI wires `lynx_investor_core.pager.PagingAppMixin` and
+  `tui_paging_bindings()` into the main application.
+- Graphical mode binds `<Prior>` / `<Next>` / `<Control-Home>` /
+  `<Control-End>` via `bind_tk_paging()`.
+- Interactive mode pages long output through `console_pager()` /
+  `paged_print()`.
+- Depends on `lynx-investor-core>=2.0`.
+
 ## [2.0] - 2026-04-19
 
 Major release — **Lince Investor Suite v2.0** unified release.

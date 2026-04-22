@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.prompt import IntPrompt, Prompt
 from rich.table import Table
 
+from lynx_investor_core.pager import console_pager, paged_print
 from lynx_mining.core.analyzer import run_progressive_analysis
 from lynx_mining.core.news import download_article
 from lynx_mining.core.reports import download_filing
@@ -98,7 +99,7 @@ def run_interactive():
             t = Table(title="Available Metrics", border_style="cyan")
             t.add_column("Key", style="bold cyan"); t.add_column("Name"); t.add_column("Category")
             for m in list_metrics(): t.add_row(m.key, m.full_name, m.category)
-            console.print(t)
+            paged_print(console, t)
         elif cmd == "search":
             if not arg:
                 try: arg = Prompt.ask("[bold]Search query[/]")
@@ -134,7 +135,9 @@ def run_interactive():
                     console.print(f"[bold red]Error:[/] {type(e).__name__}: {e}")
             except Exception as e: console.print(f"[bold red]Error:[/] {type(e).__name__}: {e}")
         elif cmd == "metrics":
-            if current_report: display_full_report(current_report)
+            if current_report:
+                with console_pager(console):
+                    display_full_report(current_report)
             else: console.print("[yellow]No analysis loaded.[/]")
         elif cmd == "summary":
             if current_report:

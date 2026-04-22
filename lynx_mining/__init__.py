@@ -25,7 +25,7 @@ _core_storage.set_base_dir(Path(__file__).resolve().parent.parent)
 # Agent-specific identity
 # ---------------------------------------------------------------------------
 
-__version__ = "2.0"  # lynx-investor-basic-materials version (independent of core)
+__version__ = "3.0"  # lynx-investor-basic-materials version (independent of core)
 
 APP_NAME = "Lynx Basic Materials Analysis"
 APP_SHORT_NAME = "Basic Materials Analysis"

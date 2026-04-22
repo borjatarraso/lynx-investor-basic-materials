@@ -89,3 +89,22 @@ class TestSectorValidation:
     def test_error_message_content(self):
         with pytest.raises(SectorMismatchError, match="outside the scope"):
             _validate_sector(self._profile(sector="Technology", industry="Software"))
+
+    def test_error_suggests_another_agent(self):
+        """Wrong-sector warning appends a 'use lynx-investor-*' line."""
+        with pytest.raises(SectorMismatchError) as exc:
+            _validate_sector(self._profile(
+                sector="Healthcare", industry="Biotechnology"))
+        message = str(exc.value)
+        assert "Suggestion" in message
+        assert "lynx-investor-healthcare" in message
+        # The original warning text is preserved alongside the suggestion.
+        assert "Lynx Basic Materials Analysis is specialized" in message
+
+    def test_error_never_suggests_self(self):
+        """The suggestion never points back to basic-materials itself."""
+        with pytest.raises(SectorMismatchError) as exc:
+            _validate_sector(self._profile(
+                sector="Technology", industry="Software"))
+        message = str(exc.value)
+        assert "use 'lynx-investor-basic-materials'" not in message
