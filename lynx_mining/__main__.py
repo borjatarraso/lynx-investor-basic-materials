@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 """Entry point for lynx-mining."""
 
 from lynx_mining.cli import run_cli
